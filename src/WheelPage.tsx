@@ -510,8 +510,9 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   const current = games[sel];
   const heroSel = useSettled(sel, HERO_SETTLE_MS);
 
-  // Alphabet popup (alphabetical sort only).
-  const alpha = s.sortMode === "alpha";
+  // Alphabet popup: A–Z sort of the whole library only. Installed games are a
+  // short list you can see at a glance, so it isn't needed there.
+  const alpha = s.sortMode === "alpha" && s.libraryScope === "all";
   const letters = useMemo(() => games.map((g) => indexLetter(g.name)), [games]);
   const letterCounts = useMemo(() => {
     const m = new Map<string, number>();

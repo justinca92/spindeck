@@ -1373,7 +1373,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   }, [s.stepDegrees, s.hapticDegrees, s.rotatePad, s.rawPadApi, n, inputLive]);
   const current = games[sel];
   const heroSel = useSettled(sel, HERO_SETTLE_MS);
-  const alpha = s.sortMode === "alpha";
+  const alpha = s.sortMode === "alpha" && s.libraryScope === "all";
   const letters = useMemo(() => games.map((g) => indexLetter(g.name)), [games]);
   const letterCounts = useMemo(() => {
     const m = new Map;

@@ -5,7 +5,7 @@
 ### Fixed
 - **Ⓨ roulette works in every library again, and always finishes in a few seconds.** 1.0.1 turned it off for "Whole library" because it stepped through one game at a time (minutes for 1000+ games). Now small libraries (≤ 30 games) spin from where you are as before; bigger ones pick the winner first, jump to a spot 22–51 games before it and spin from there (about 3–4 s, landing spot still uniform).
 - **Alphabet popup didn't appear on the Deck.** Its backdrop blur was the one thing it did that the (visible) milestone toast doesn't, and Steam's compositor has refused our backdrop blurs before, so it now uses a solid background. Also logs `[Spindeck:letter] show …` to the console for checking.
-- **Alphabet popup look:** no border; its dark background now fades out softly at the edges. It shows for 1 s (was 1.5 s).
+- **Alphabet popup look:** no border; its dark background now fades out softly at the edges. It shows for 1 s (was 1.5 s), and only for the whole library: installed games are a short list.
 - **Milestone toast flickered while spinning.** It sat in the corner block, which resizes with every game, so it jumped around. It now has a fixed spot at the top of the art side: right-aligned with the wheel on the left, left-aligned with the wheel on the right.
 
 ## 1.1.1 — 2026-10-03
