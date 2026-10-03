@@ -238,7 +238,6 @@ var ko = {
   defaultOwner: "나의 스팀덱",
   noGames: "표시할 게임이 없어요",
   letterCount: "게임 {n}개",
-  fidgetOn: "\uD83C\uDF00 피젯 모드! 손을 떼도 계속 돌아가요",
   milestone: (n) => `\uD83C\uDF89 다이얼 ${n}바퀴 돌파!`,
   odometer: (n) => `\uD83C\uDF00 지금까지 돌린 바퀴: ${n}`,
   gamePage: "게임 페이지",
@@ -296,7 +295,6 @@ var en = {
   defaultOwner: "My Steam Deck",
   noGames: "No games to show",
   letterCount: "{n} games",
-  fidgetOn: "\uD83C\uDF00 Fidget mode! Let go and it keeps spinning",
   milestone: (n) => `\uD83C\uDF89 ${n} turns on the dial!`,
   odometer: (n) => `\uD83C\uDF00 Dial odometer: ${n} turns`,
   gamePage: "Game page",
@@ -453,7 +451,6 @@ var ANALOG_TYPE = { left: 48, right: 49 };
 var ANALOG_DEADZONE = 0.12;
 var ANALOG_GESTURE_GAP_MS = 150;
 var MAX_TURN_PER_MESSAGE = Math.PI / 2;
-var RELEASE_VELOCITY_WINDOW_MS = 120;
 function subscribeKeyboardAnalogWheel(opts) {
   const Input = globalThis.SteamClient?.Input;
   if (!Input?.RegisterForControllerAnalogInputMessages || !Input?.SetKeyboardActionset)
@@ -463,18 +460,6 @@ function subscribeKeyboardAnalogWheel(opts) {
   const detents = opts.onDetent && opts.detentDegrees ? makeStepper({ ...opts, stepDegrees: opts.detentDegrees, onStep: () => opts.onDetent() }) : null;
   let last = null;
   let lastTime = 0;
-  let samples = [];
-  let releaseT;
-  const release = () => {
-    const end = samples.length ? samples[samples.length - 1].t : 0;
-    const recent = samples.filter((x) => end - x.t <= RELEASE_VELOCITY_WINDOW_MS);
-    samples = [];
-    if (recent.length < 2)
-      return opts.onRelease?.(0);
-    const span = Math.max(16, recent[recent.length - 1].t - recent[0].t);
-    const sum = recent.slice(1).reduce((a, x) => a + x.d, 0);
-    opts.onRelease?.(sum / span * 1000);
-  };
   let reg;
   try {
     reg = Input.RegisterForControllerAnalogInputMessages((_idx, type, _p, x, y) => {
@@ -495,14 +480,7 @@ function subscribeKeyboardAnalogWheel(opts) {
         if (Math.abs(d) <= MAX_TURN_PER_MESSAGE) {
           stepper.add(-d);
           detents?.add(-d);
-          if (opts.onTurn || opts.onRelease) {
-            opts.onTurn?.(-d);
-            samples.push({ t: now, d: -d });
-            if (samples.length > 64)
-              samples.shift();
-            clearTimeout(releaseT);
-            releaseT = setTimeout(release, ANALOG_GESTURE_GAP_MS);
-          }
+          opts.onTurn?.(-d);
         }
       }
       last = a;
@@ -517,7 +495,6 @@ function subscribeKeyboardAnalogWheel(opts) {
   }, 1000);
   const stop = () => {
     clearInterval(keep);
-    clearTimeout(releaseT);
     try {
       Input.SetKeyboardActionset(false, false);
       Input.EnableControllerAnalogInputMessages?.(false);
@@ -584,46 +561,7 @@ function subscribeScrollWheel(el, opts) {
   return () => el.removeEventListener("wheel", onWheel);
 }
 
-// src/constants.ts
-var SLIDE_MS = 300;
-var SLIDE_SETTLED_MS = 320;
-var SWITCH_COOLDOWN_MS = 700;
-var HOLD_REPEAT_MS = 250;
-var HOLD_GRACE_MS = 300;
-var HIDDEN_ROW_GRACE_MS = 600;
-var UP_FOCUS_WINDOW_MS = 500;
-var ARRIVAL_IGNORE_MS = 700;
-var CIRCLE_START_DELAY_MS = 500;
-var WINDOW_REFOCUS_DELAY_MS = 800;
-var HAPTIC_MUTE_AFTER_B_MS = 500;
-var HERO_SETTLE_MS = 150;
-var ACHIEVEMENTS_DELAY_MS = 200;
-var WHEEL_FOLLOW_TAU_MS = 55;
-var WHEEL_MAX_LAG = 2;
-var SCROLL_SETTLE_MS = 140;
-var HEADER_REAPPLY_MS = 1000;
-var HEADER_RESCAN_MS = 5000;
-var ROULETTE_MIN_STEPS = 22;
-var ROULETTE_STEP_MS = 35;
-var ROULETTE_SLOWDOWN_MS = 320;
-var ROULETTE_EASE = 2.6;
-var ROULETTE_RESULT_MS = 4000;
-var LETTER_POPUP_MS = 1500;
-var LETTER_FAST_STEPS = 3;
-var LETTER_FAST_WINDOW_MS = 600;
-var FIDGET_TURNS = 10;
-var FIDGET_TURNS_MAX_MS = 15000;
-var FIDGET_STREAK_GAP_MS = 1000;
-var FIDGET_IDLE_OFF_MS = 6000;
-var FIDGET_COAST_MIN_DEG_S = 180;
-var FIDGET_COAST_MAX_DEG_S = 1800;
-var FIDGET_COAST_TAU_MS = 1400;
-var FIDGET_COAST_STOP_DEG_S = 35;
-var ODOMETER_SAVE_MS = 3000;
-var TOAST_MS = 3500;
-
-// src/fidget.ts
-var TURN = 2 * Math.PI;
+// src/odometer.ts
 var ODOMETER_MILESTONES = [25, 100, 500, 1000, 2500, 5000, 1e4, 25000, 50000, 1e5];
 function crossedMilestone(before, after) {
   let hit = null;
@@ -631,85 +569,6 @@ function crossedMilestone(before, after) {
     if (before < m && after >= m)
       hit = m;
   return hit;
-}
-
-class FidgetTracker {
-  armed = false;
-  net = 0;
-  start = 0;
-  lastInput = 0;
-  feed(d, now) {
-    if (this.armed && now - this.lastInput > FIDGET_IDLE_OFF_MS)
-      this.armed = false;
-    const gap = now - this.lastInput > FIDGET_STREAK_GAP_MS;
-    const reversed = this.net !== 0 && Math.sign(d) !== Math.sign(this.net) && Math.abs(d) > 0.05;
-    if (gap || reversed) {
-      this.net = 0;
-      this.start = now;
-    }
-    this.lastInput = now;
-    this.net += d;
-    if (this.armed)
-      return false;
-    if (now - this.start > FIDGET_TURNS_MAX_MS) {
-      this.net = d;
-      this.start = now;
-    }
-    if (Math.abs(this.net) >= FIDGET_TURNS * TURN) {
-      this.armed = true;
-      return true;
-    }
-    return false;
-  }
-  coastSpeed(radPerSec, now) {
-    if (!this.armed)
-      return 0;
-    if (now - this.lastInput > FIDGET_IDLE_OFF_MS) {
-      this.armed = false;
-      return 0;
-    }
-    const deg = radPerSec * 180 / Math.PI;
-    if (Math.abs(deg) < FIDGET_COAST_MIN_DEG_S)
-      return 0;
-    return Math.sign(deg) * Math.min(Math.abs(deg), FIDGET_COAST_MAX_DEG_S);
-  }
-  touch(now) {
-    this.lastInput = now;
-  }
-}
-
-class Coaster {
-  timer;
-  v = 0;
-  last = 0;
-  running = false;
-  start(degPerSec, onDelta, onEnd) {
-    this.stop();
-    this.v = degPerSec;
-    this.last = Date.now();
-    this.running = true;
-    const frame = () => {
-      const now = Date.now();
-      const dt = Math.min(64, now - this.last);
-      this.last = now;
-      const k = Math.exp(-dt / FIDGET_COAST_TAU_MS);
-      const travel = this.v * FIDGET_COAST_TAU_MS * (1 - k) / 1000;
-      this.v *= k;
-      onDelta(travel);
-      if (Math.abs(this.v) < FIDGET_COAST_STOP_DEG_S) {
-        this.stop();
-        onEnd?.();
-        return;
-      }
-      this.timer = setTimeout(frame, 16);
-    };
-    this.timer = setTimeout(frame, 16);
-  }
-  stop() {
-    clearTimeout(this.timer);
-    this.timer = undefined;
-    this.running = false;
-  }
 }
 
 // src/sound.ts
@@ -1084,6 +943,36 @@ function sweepLeftovers() {
   }
 }
 
+// src/constants.ts
+var SLIDE_MS = 300;
+var SLIDE_SETTLED_MS = 320;
+var SWITCH_COOLDOWN_MS = 700;
+var HOLD_REPEAT_MS = 250;
+var HOLD_GRACE_MS = 300;
+var HIDDEN_ROW_GRACE_MS = 600;
+var UP_FOCUS_WINDOW_MS = 500;
+var ARRIVAL_IGNORE_MS = 700;
+var CIRCLE_START_DELAY_MS = 500;
+var WINDOW_REFOCUS_DELAY_MS = 800;
+var HAPTIC_MUTE_AFTER_B_MS = 500;
+var HERO_SETTLE_MS = 150;
+var ACHIEVEMENTS_DELAY_MS = 200;
+var WHEEL_FOLLOW_TAU_MS = 55;
+var WHEEL_MAX_LAG = 2;
+var SCROLL_SETTLE_MS = 140;
+var HEADER_REAPPLY_MS = 1000;
+var HEADER_RESCAN_MS = 5000;
+var ROULETTE_MIN_STEPS = 22;
+var ROULETTE_STEP_MS = 35;
+var ROULETTE_SLOWDOWN_MS = 320;
+var ROULETTE_EASE = 2.6;
+var ROULETTE_RESULT_MS = 4000;
+var LETTER_POPUP_MS = 1500;
+var LETTER_FAST_STEPS = 3;
+var LETTER_FAST_WINDOW_MS = 600;
+var ODOMETER_SAVE_MS = 3000;
+var TOAST_MS = 3500;
+
 // src/WheelPage.tsx
 var BASE_CAPSULE_W = 80;
 var BASE_CAPSULE_H = 120;
@@ -1317,8 +1206,6 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   const move = (dir, source) => {
     if (!n || spinningRef.current)
       return;
-    if (source !== "analog")
-      coaster.current.stop();
     advance(dir, source === "pad");
   };
   const detentTick = () => {
@@ -1326,8 +1213,6 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       return;
     wheelTick(live.current.pad, live.current.circleOn, live.current.hapticLevel);
   };
-  const coaster = useRef(new Coaster);
-  const fidget = useRef(new FidgetTracker);
   const [toast, setToast] = useState({ text: "", show: false });
   const toastTimer = useRef(null);
   const showToast = (text) => {
@@ -1349,50 +1234,20 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     updateSettings({ odometerTurns: total });
   };
   useEffect(() => () => {
-    coaster.current.stop();
     clearTimeout(toastTimer.current);
     flushOdometer();
   }, []);
   const onFingerTurn = (d) => {
-    const now = Date.now();
-    coaster.current.stop();
     const before = getSettings().odometerTurns + pendingTurns.current;
     pendingTurns.current += Math.abs(d) / (2 * Math.PI);
     const hit = settingsLoaded() ? crossedMilestone(before, before + Math.abs(d) / (2 * Math.PI)) : null;
     clearTimeout(odoTimer.current);
     odoTimer.current = setTimeout(flushOdometer, ODOMETER_SAVE_MS);
-    if (fidget.current.feed(d, now)) {
-      showToast(t.fidgetOn);
-      if (live.current.sound)
-        playUiSound("detail");
-    } else if (hit !== null) {
+    if (hit !== null) {
       showToast(t.milestone(hit.toLocaleString()));
       if (live.current.sound)
         playUiSound("detail");
     }
-  };
-  const onFingerRelease = (radPerSec) => {
-    const speed = fidget.current.coastSpeed(radPerSec, Date.now());
-    if (!speed || !n || spinningRef.current)
-      return;
-    let stepAcc = 0;
-    let detAcc = 0;
-    const stepDeg = live.current.stepDegrees;
-    const detDeg = live.current.hapticDegrees;
-    coaster.current.start(speed, (deg) => {
-      fidget.current.touch(Date.now());
-      stepAcc += deg;
-      detAcc += deg;
-      while (Math.abs(stepAcc) >= stepDeg) {
-        const dir = stepAcc > 0 ? 1 : -1;
-        move(dir, "analog");
-        stepAcc -= dir * stepDeg;
-      }
-      while (Math.abs(detAcc) >= detDeg) {
-        detentTick();
-        detAcc -= Math.sign(detAcc) * detDeg;
-      }
-    });
   };
   const spinTimer = useRef(null);
   const doneTimer = useRef(null);
@@ -1420,7 +1275,6 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   const spin = () => {
     if (!rouletteOn || n < 2 || spinningRef.current)
       return;
-    coaster.current.stop();
     spinningRef.current = true;
     setRoulette("spinning");
     const steps = ROULETTE_MIN_STEPS + Math.floor(Math.random() * n);
@@ -1498,8 +1352,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
         onStep: (d) => move(d, "analog"),
         detentDegrees: s.hapticDegrees,
         onDetent: detentTick,
-        onTurn: onFingerTurn,
-        onRelease: onFingerRelease
+        onTurn: onFingerTurn
       });
       live.current.circleOn = true;
     }, CIRCLE_START_DELAY_MS) : undefined;
@@ -1508,7 +1361,6 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     const unsubWheel = el ? subscribeScrollWheel(el, opts) : () => {};
     return () => {
       clearTimeout(startT);
-      coaster.current.stop();
       live.current.circleOn = false;
       unsubAnalog();
       unsubCursor();
@@ -2465,7 +2317,7 @@ function WheelHome({ original }) {
 // src/links.ts
 var KOFI_URL = "https://ko-fi.com/jhw0806";
 var REPO_URL = "https://github.com/justinca92/spindeck";
-var PLUGIN_VERSION = "1.1.0";
+var PLUGIN_VERSION = "1.1.1";
 
 // src/index.tsx
 var ROUTE = "/spindeck";

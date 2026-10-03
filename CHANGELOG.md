@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1 — 2026-10-03
+
+### Removed
+- **Fidget mode** (coasting after 10 fast turns). The odometer stays.
+
 ## 1.1.0 — 2026-10-03
 
 ### Added — easter eggs

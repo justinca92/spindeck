@@ -50,18 +50,6 @@ export const LETTER_POPUP_MS = 1500;
 export const LETTER_FAST_STEPS = 3;
 export const LETTER_FAST_WINDOW_MS = 600;
 
-/** Easter egg — fidget mode: FIDGET_TURNS full turns in one direction within FIDGET_TURNS_MAX_MS. */
-export const FIDGET_TURNS = 10;
-export const FIDGET_TURNS_MAX_MS = 15000;
-/** A pause longer than this between rubs breaks the streak. */
-export const FIDGET_STREAK_GAP_MS = 1000;
-/** Fidget mode turns itself off after this long without touching the dial. */
-export const FIDGET_IDLE_OFF_MS = 6000;
-/** Coasting: needs a release faster than MIN, capped at MAX, decays with τ, stops below STOP (all deg/s). */
-export const FIDGET_COAST_MIN_DEG_S = 180;
-export const FIDGET_COAST_MAX_DEG_S = 1800;
-export const FIDGET_COAST_TAU_MS = 1400;
-export const FIDGET_COAST_STOP_DEG_S = 35;
 /** Odometer: save this long after the dial stops; toasts show this long. */
 export const ODOMETER_SAVE_MS = 3000;
 export const TOAST_MS = 3500;

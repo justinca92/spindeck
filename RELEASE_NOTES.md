@@ -1,5 +1,12 @@
 # Release notes
 
+## 1.1.1
+
+- **Fidget mode removed.** The wheel no longer coasts after you let go. The dial odometer and everything else are unchanged.
+
+Install: Decky → Developer → Install Plugin from URL →
+https://github.com/justinca92/spindeck/releases/download/v1.1.1/spindeck-1.1.1.zip
+
 ## 1.1.0 — first public release
 
 **Spindeck** turns the Steam Deck home screen into a rotary dial for your games: rub the trackpad in a circle and feel every game click by.
