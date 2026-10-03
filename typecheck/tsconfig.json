@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "noEmit": true, "rootDir": "..", "moduleResolution": "bundler", "types": [], "lib": ["ES2021", "DOM", "DOM.Iterable"] },
+  "include": ["../src", "./*.d.ts"]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "Spindeck",
+  "author": "justinca92",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "tags": [
+      "launcher",
+      "ui",
+      "home"
+    ],
+    "description": "A rotary-wheel game launcher that replaces the Steam Deck home screen. Spin it with a trackpad circle.",
+    "image": ""
+  }
+}

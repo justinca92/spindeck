@@ -1,0 +1,25 @@
+{
+  "name": "spindeck",
+  "version": "1.0.1",
+  "description": "Rotary-wheel game launcher for Steam Deck with personalized title",
+  "type": "module",
+  "scripts": {
+    "build": "bun build/build.ts",
+    "package": "./scripts/package.sh",
+    "typecheck": "tsc -p typecheck/tsconfig.json",
+    "build:rollup": "rollup -c"
+  },
+  "license": "BSD-3-Clause",
+  "devDependencies": {
+    "@decky/rollup": "^1.0.1",
+    "@decky/ui": "^4.7.2",
+    "@types/react": "18.3.3",
+    "@types/webpack": "^5.28.5",
+    "rollup": "^4.22.5",
+    "typescript": "^5.6.2"
+  },
+  "dependencies": {
+    "@decky/api": "^1.1.2",
+    "tslib": "^2.7.0"
+  }
+}
