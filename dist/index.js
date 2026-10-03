@@ -968,7 +968,7 @@ var ROULETTE_STEP_MS = 35;
 var ROULETTE_SLOWDOWN_MS = 320;
 var ROULETTE_EASE = 2.6;
 var ROULETTE_RESULT_MS = 4000;
-var LETTER_POPUP_MS = 1500;
+var LETTER_POPUP_MS = 1000;
 var LETTER_FAST_STEPS = 3;
 var LETTER_FAST_WINDOW_MS = 600;
 var ODOMETER_SAVE_MS = 3000;
@@ -1587,16 +1587,14 @@ function LetterPopup({ letter, count, show, accent, label }) {
       left: "50%",
       top: "50%",
       transform: "translate(-50%, -50%)",
-      width: 200,
-      height: 200,
-      borderRadius: 36,
+      width: 300,
+      height: 300,
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
       gap: 2,
-      background: "rgba(11, 15, 22, 0.9)",
-      boxShadow: "0 0 0 1px rgba(255,255,255,0.12), 0 20px 60px rgba(0,0,0,0.6)",
+      background: "radial-gradient(closest-side, rgba(11,15,22,0.92) 0%, rgba(11,15,22,0.85) 45%, rgba(11,15,22,0.45) 75%, rgba(11,15,22,0) 100%)",
       opacity: show ? 1 : 0,
       transition: show ? "opacity 80ms ease-out" : "opacity 300ms ease-in",
       pointerEvents: "none",

@@ -731,9 +731,9 @@ export function indexLetter(name: string): string {
 
 /**
  * Alphabetical sort: when the selection moves into a new letter, a big
- * non-interactive letter popup shows in the middle of the screen for 1.5 s,
+ * non-interactive letter popup shows in the middle of the screen for 1 s,
  * then fades. Moving into another letter meanwhile switches it at once and
- * restarts the 1.5 s.
+ * restarts the 1 s.
  */
 function LetterPopup({ letter, count, show, accent, label }: { letter: string; count: number; show: boolean; accent: string; label: string }) {
   return (
@@ -744,19 +744,16 @@ function LetterPopup({ letter, count, show, accent, label }: { letter: string; c
         left: "50%",
         top: "50%",
         transform: "translate(-50%, -50%)",
-        width: 200,
-        height: 200,
-        borderRadius: 36,
+        width: 300,
+        height: 300,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         gap: 2,
-        // No backdrop-filter: it's the one thing this popup did that the toast
-        // (which shows fine on device) doesn't, and Steam's compositor has
-        // already refused our backdrop blurs elsewhere. Solid enough instead.
-        background: "rgba(11, 15, 22, 0.9)",
-        boxShadow: "0 0 0 1px rgba(255,255,255,0.12), 0 20px 60px rgba(0,0,0,0.6)",
+        // No border, and no hard edge: a dark glow that fades out to nothing.
+        // (No backdrop-filter either — Steam's compositor didn't draw it.)
+        background: "radial-gradient(closest-side, rgba(11,15,22,0.92) 0%, rgba(11,15,22,0.85) 45%, rgba(11,15,22,0.45) 75%, rgba(11,15,22,0) 100%)",
         opacity: show ? 1 : 0,
         transition: show ? "opacity 80ms ease-out" : "opacity 300ms ease-in",
         pointerEvents: "none",

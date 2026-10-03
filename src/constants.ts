@@ -47,7 +47,7 @@ export const ROULETTE_EASE = 2.6;
 export const ROULETTE_RESULT_MS = 4000;
 
 /** Alphabetical sort: the big letter popup stays this long after the letter changes. */
-export const LETTER_POPUP_MS = 1500;
+export const LETTER_POPUP_MS = 1000;
 /** Also show the letter while spinning fast inside one letter: N games within this window. */
 export const LETTER_FAST_STEPS = 3;
 export const LETTER_FAST_WINDOW_MS = 600;
