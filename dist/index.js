@@ -972,6 +972,7 @@ var LETTER_FAST_STEPS = 3;
 var LETTER_FAST_WINDOW_MS = 600;
 var ODOMETER_SAVE_MS = 3000;
 var TOAST_MS = 3500;
+var TOAST_TOP_PX = 84;
 
 // src/WheelPage.tsx
 var BASE_CAPSULE_W = 80;
@@ -1517,6 +1518,11 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     show: popup.show,
     accent: s.accentColor,
     label: t.letterCount
+  }), /* @__PURE__ */ window.SP_REACT.createElement(Toast, {
+    text: toast.text,
+    show: toast.show,
+    accent: s.accentColor,
+    side: flip ? "right" : "left"
   }), !n && /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { position: "absolute", [flip ? "left" : "right"]: 60, top: "48%", color: "#aaa", fontSize: 20 }
   }, t.noGames), /* @__PURE__ */ window.SP_REACT.createElement("div", {
@@ -1528,11 +1534,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       textShadow: "0 2px 8px #000",
       textAlign: flip ? "right" : "left"
     }
-  }, /* @__PURE__ */ window.SP_REACT.createElement(Toast, {
-    text: toast.text,
-    show: toast.show,
-    accent: s.accentColor
-  }), rouletteOn && /* @__PURE__ */ window.SP_REACT.createElement(RoulettePill, {
+  }, rouletteOn && /* @__PURE__ */ window.SP_REACT.createElement(RoulettePill, {
     state: roulette,
     accent: s.accentColor,
     label: roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette
@@ -1603,14 +1605,18 @@ function LetterPopup({ letter, count, show, accent, label }) {
     style: { fontSize: 13, color: "#c8d1dc" }
   }, label.replace("{n}", String(count))));
 }
-function Toast({ text, show, accent }) {
+function Toast({ text, show, accent, side }) {
   if (!text)
     return null;
   return /* @__PURE__ */ window.SP_REACT.createElement("div", {
     "aria-hidden": "true",
     style: {
-      display: "table",
-      marginBottom: 10,
+      position: "absolute",
+      top: TOAST_TOP_PX,
+      [side]: 40,
+      maxWidth: "45%",
+      whiteSpace: "nowrap",
+      zIndex: 250,
       padding: "6px 14px",
       borderRadius: 999,
       background: "rgba(11, 15, 22, 0.78)",
@@ -2317,7 +2323,7 @@ function WheelHome({ original }) {
 // src/links.ts
 var KOFI_URL = "https://ko-fi.com/jhw0806";
 var REPO_URL = "https://github.com/justinca92/spindeck";
-var PLUGIN_VERSION = "1.1.1";
+var PLUGIN_VERSION = "1.1.2";
 
 // src/index.tsx
 var ROUTE = "/spindeck";

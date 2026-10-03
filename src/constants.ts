@@ -53,3 +53,5 @@ export const LETTER_FAST_WINDOW_MS = 600;
 /** Odometer: save this long after the dial stops; toasts show this long. */
 export const ODOMETER_SAVE_MS = 3000;
 export const TOAST_MS = 3500;
+/** Toast position: below Steam's top bar, on the art side (opposite the wheel). */
+export const TOAST_TOP_PX = 84;

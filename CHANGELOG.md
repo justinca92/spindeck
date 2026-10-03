@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2 — 2026-10-03
+
+### Fixed
+- **Milestone toast flickered while spinning.** It sat in the corner block, which resizes with every game, so it jumped around. It now has a fixed spot at the top of the art side: right-aligned with the wheel on the left, left-aligned with the wheel on the right.
+
 ## 1.1.1 — 2026-10-03
 
 ### Removed

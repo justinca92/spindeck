@@ -18,6 +18,7 @@ import {
   LETTER_FAST_STEPS,
   ODOMETER_SAVE_MS,
   TOAST_MS,
+  TOAST_TOP_PX,
   LETTER_FAST_WINDOW_MS,
   LETTER_POPUP_MS,
   ROULETTE_EASE,
@@ -656,6 +657,10 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
           <LetterPopup letter={popup.letter} count={letterCounts.get(popup.letter) ?? 0} show={popup.show} accent={s.accentColor} label={t.letterCount} />
         )}
 
+        {/* Fixed spot on the art side, out of the corner block's flow: that block
+            resizes with every game while spinning, which made the toast jump. */}
+        <Toast text={toast.text} show={toast.show} accent={s.accentColor} side={flip ? "right" : "left"} />
+
         {!n && (
           <div style={{ position: "absolute", [flip ? "left" : "right"]: 60, top: "48%", color: "#aaa", fontSize: 20 }}>{t.noGames}</div>
         )}
@@ -671,7 +676,6 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
             textAlign: flip ? "right" : "left",
           }}
         >
-          <Toast text={toast.text} show={toast.show} accent={s.accentColor} />
           {rouletteOn && <RoulettePill state={roulette} accent={s.accentColor} label={roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette} />}
           {current && (
             <div
@@ -757,14 +761,18 @@ function LetterPopup({ letter, count, show, accent, label }: { letter: string; c
 }
 
 /** Small pill above the roulette one for easter-egg messages; fades in and out. */
-function Toast({ text, show, accent }: { text: string; show: boolean; accent: string }) {
+function Toast({ text, show, accent, side }: { text: string; show: boolean; accent: string; side: "left" | "right" }) {
   if (!text) return null;
   return (
     <div
       aria-hidden="true"
       style={{
-        display: "table",
-        marginBottom: 10,
+        position: "absolute",
+        top: TOAST_TOP_PX,
+        [side]: 40,
+        maxWidth: "45%",
+        whiteSpace: "nowrap",
+        zIndex: 250,
         padding: "6px 14px",
         borderRadius: 999,
         background: "rgba(11, 15, 22, 0.78)",
