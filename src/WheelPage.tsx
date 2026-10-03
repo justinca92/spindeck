@@ -407,6 +407,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
       steps = ROULETTE_MIN_STEPS + Math.floor(Math.random() * ROULETTE_MAX_EXTRA_STEPS);
       setSel((((target - dir * steps) % n) + n) % n);
     }
+    debug("roulette", "spin", { games: n, steps });
     let i = 0;
     const tick = () => {
       advance(dir, true);
@@ -615,6 +616,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
       // Confirmed on device: Ⓨ arrives as "Options", ≡ as "Menu".
       onOptionsButton={(e: any) => {
         consume(e);
+        debug("roulette", "Y", { spinning: spinningRef.current, games: n });
         if (spinningRef.current) stopSpin(true);
         else spin();
       }}

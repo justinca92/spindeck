@@ -1283,6 +1283,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       steps = ROULETTE_MIN_STEPS + Math.floor(Math.random() * ROULETTE_MAX_EXTRA_STEPS);
       setSel(((target - dir * steps) % n + n) % n);
     }
+    debug("roulette", "spin", { games: n, steps });
     let i = 0;
     const tick = () => {
       advance(dir, true);
@@ -1468,6 +1469,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     onOKActionDescription: t.gamePage,
     onOptionsButton: (e) => {
       consume(e);
+      debug("roulette", "Y", { spinning: spinningRef.current, games: n });
       if (spinningRef.current)
         stopSpin(true);
       else
