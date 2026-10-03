@@ -13,7 +13,10 @@
 
 - **Wheel home screen.** Your library sits on a dial on the screen edge, with the selected game's hero art on the other side.
 - **Trackpad circle rotation.** Rub the trackpad in a circle to spin the wheel. It clicks with Steam's own haptic tick on that pad, with adjustable strength.
-- **Today's game.** Press Ⓨ to spin a roulette that lands on a random game. Press Ⓨ again to stop it on the spot.
+- **Alphabet popup.** In A–Z sort, a big letter shows when the first letter changes and while you spin fast.
+- **Today's game.** Press Ⓨ to spin a roulette that lands on a random installed game. Press Ⓨ again to stop it on the spot.
+- **Fidget mode.** Spin 10 full turns without stopping, then let go: the wheel coasts on, clicking slower until it stops. Touch the pad to catch it.
+- **Dial odometer.** Counts every turn you've ever spun. See the total in the panel's About section, with milestone celebrations along the way.
 - **Your own title.** Set a line of text in the corner (e.g. "j1's Steam Deck") and an optional subtitle, with a preset accent colour.
 - **Steam's home is still there.** Press ▼ for What's New / Friends / Recommended, which behave like the stock page.
 - **English and Korean**, following Steam's language. There is a built-in Hangul keypad, because Steam's keyboard can't type Korean in the Quick Access panel.
@@ -26,7 +29,7 @@
 | D-pad ◀ ▶ | Previous / next game |
 | Ⓐ | Open the game's page |
 | ≡ | Steam's game menu (Play, Properties, …) |
-| Ⓨ | Roulette: "Today's game?" (Ⓨ again stops it) |
+| Ⓨ | Roulette: "Today's game?" (Ⓨ again stops it; installed games only) |
 | D-pad ▲ | Search, like the stock home |
 | D-pad ▼ | What's New / Friends / Recommended |
 | ▲ from the top there | Back to the wheel |
@@ -76,6 +79,10 @@ npm run typecheck         # strict TypeScript check with offline stubs
 ```
 
 Pushing a tag `vX.Y.Z` (matching `package.json`) builds the zip and publishes a GitHub Release via `.github/workflows/release.yml`. Dev tests are in `tests/` (see `tests/README.md`).
+
+## How it was made
+
+Spindeck was built with AI assistance (Claude). I designed the features, tested and tuned everything on my own Steam Deck, and decided what shipped.
 
 ## License
 
