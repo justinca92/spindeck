@@ -1,5 +1,15 @@
 # Release notes
 
+## 1.1.0
+
+Easter eggs, plus the 1.0.1 fixes:
+
+- 🌀 **Fidget mode.** Spin 10 full turns without stopping, then let go: the wheel keeps coasting, clicking slower and slower until it stops. Touch the pad to catch it.
+- 📟 **Dial odometer.** Spindeck counts every turn you spin. See your total in the panel's About section, and watch for milestone celebrations.
+- **No roulette in "Whole library".** With 1000+ games it spun for minutes; Ⓨ roulette now works with "Installed games".
+- **Stronger default haptics** (level 7, was 5).
+- **Alphabet popup** also appears while you spin fast inside a big letter group.
+
 ## 1.0.1
 
 - **No roulette in "Whole library".** With 1000+ games it spun for minutes; Ⓨ roulette now works only with "Installed games".

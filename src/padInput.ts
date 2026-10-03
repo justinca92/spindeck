@@ -22,6 +22,10 @@ export interface PadWheelOptions {
   /** Haptic detents, independent of game steps (analog path only): fires every `detentDegrees`. */
   detentDegrees?: number;
   onDetent?: () => void;
+  /** Every accepted finger movement, radians, clockwise-positive (analog path only). */
+  onTurn?: (dClockwise: number) => void;
+  /** Finger lifted: angular speed over the last moments, rad/s, clockwise-positive. */
+  onRelease?: (radPerSec: number) => void;
 }
 
 const wrap = (d: number) => {
@@ -56,6 +60,7 @@ export const ANALOG_TYPE = { left: 48, right: 49 } as const;
 const ANALOG_DEADZONE = 0.12; // normalized radius; the centre is noisy
 const ANALOG_GESTURE_GAP_MS = 150; // messages stop while not touching
 const MAX_TURN_PER_MESSAGE = Math.PI / 2; // larger = a jump (e.g. pad reset on B), not rubbing
+const RELEASE_VELOCITY_WINDOW_MS = 120; // speed at release = motion over this last stretch
 
 /** Main path: keyboard-action-set analog messages. */
 export function subscribeKeyboardAnalogWheel(opts: PadWheelOptions): () => void {
@@ -70,6 +75,17 @@ export function subscribeKeyboardAnalogWheel(opts: PadWheelOptions): () => void 
       : null;
   let last: number | null = null;
   let lastTime = 0;
+  let samples: { t: number; d: number }[] = [];
+  let releaseT: ReturnType<typeof setTimeout> | undefined;
+  const release = () => {
+    const end = samples.length ? samples[samples.length - 1].t : 0;
+    const recent = samples.filter((x) => end - x.t <= RELEASE_VELOCITY_WINDOW_MS);
+    samples = [];
+    if (recent.length < 2) return opts.onRelease?.(0);
+    const span = Math.max(16, recent[recent.length - 1].t - recent[0].t);
+    const sum = recent.slice(1).reduce((a, x) => a + x.d, 0);
+    opts.onRelease?.((sum / span) * 1000);
+  };
 
   let reg: any;
   try {
@@ -90,6 +106,13 @@ export function subscribeKeyboardAnalogWheel(opts: PadWheelOptions): () => void 
         if (Math.abs(d) <= MAX_TURN_PER_MESSAGE) {
           stepper.add(-d);
           detents?.add(-d);
+          if (opts.onTurn || opts.onRelease) {
+            opts.onTurn?.(-d);
+            samples.push({ t: now, d: -d });
+            if (samples.length > 64) samples.shift();
+            clearTimeout(releaseT);
+            releaseT = setTimeout(release, ANALOG_GESTURE_GAP_MS);
+          }
         }
       }
       last = a;
@@ -110,6 +133,7 @@ export function subscribeKeyboardAnalogWheel(opts: PadWheelOptions): () => void 
 
   const stop = () => {
     clearInterval(keep);
+    clearTimeout(releaseT);
     try {
       Input.SetKeyboardActionset(false, false);
       Input.EnableControllerAnalogInputMessages?.(false);

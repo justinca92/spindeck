@@ -3,7 +3,8 @@ import { CSSProperties, memo, useEffect, useMemo, useRef, useState } from "react
 import { useT } from "./i18n";
 import { AchievementProgress, GameEntry, loadGames, openGamePage, subscribeAchievements } from "./games";
 import { subscribeCursorWheel, subscribeKeyboardAnalogWheel, subscribeScrollWheel } from "./padInput";
-import { useSettings } from "./settings";
+import { getSettings, settingsLoaded, updateSettings, useSettings } from "./settings";
+import { Coaster, crossedMilestone, FidgetTracker } from "./fidget";
 import { playUiSound } from "./sound";
 import { openNativeGameMenu } from "./nativeMenu";
 import { wheelTick } from "./haptics";
@@ -15,6 +16,8 @@ import {
   HAPTIC_MUTE_AFTER_B_MS,
   HERO_SETTLE_MS,
   LETTER_FAST_STEPS,
+  ODOMETER_SAVE_MS,
+  TOAST_MS,
   LETTER_FAST_WINDOW_MS,
   LETTER_POPUP_MS,
   ROULETTE_EASE,
@@ -296,7 +299,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   useEffect(() => () => motion.stop(), [motion]);
 
   // Latest values for callbacks registered once.
-  const live = useRef({ sound: s.soundEnabled, haptic: s.hapticEnabled, pad: s.rotatePad, circleOn: false, hapticLevel: s.hapticLevel });
+  const live = useRef({ sound: s.soundEnabled, haptic: s.hapticEnabled, pad: s.rotatePad, circleOn: false, hapticLevel: s.hapticLevel, stepDegrees: s.stepDegrees, hapticDegrees: s.hapticDegrees });
   live.current.hapticLevel = s.hapticLevel;
   live.current.sound = s.soundEnabled;
   live.current.haptic = s.hapticEnabled;
@@ -314,11 +317,84 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   // "analog" = circle input with separate haptic detents (ticks come from onDetent).
   const move = (dir: 1 | -1, source: "pad" | "dpad" | "analog") => {
     if (!n || spinningRef.current) return;
+    if (source !== "analog") coaster.current.stop();
     advance(dir, source === "pad");
   };
   const detentTick = () => {
     if (!n || spinningRef.current || !live.current.haptic || Date.now() <= hapticMuteUntil.current) return;
     wheelTick(live.current.pad, live.current.circleOn, live.current.hapticLevel);
+  };
+
+  // Easter eggs: odometer (turns ever spun) and fidget mode (coast after release).
+  const coaster = useRef(new Coaster());
+  const fidget = useRef(new FidgetTracker());
+  const [toast, setToast] = useState<{ text: string; show: boolean }>({ text: "", show: false });
+  const toastTimer = useRef<any>(null);
+  const showToast = (text: string) => {
+    setToast({ text, show: true });
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => {
+      setToast((x) => ({ ...x, show: false }));
+      // Then drop it from the layout so it doesn't keep its space.
+      toastTimer.current = setTimeout(() => setToast({ text: "", show: false }), 300);
+    }, TOAST_MS);
+  };
+  const pendingTurns = useRef(0);
+  const odoTimer = useRef<any>(null);
+  const flushOdometer = () => {
+    clearTimeout(odoTimer.current);
+    // Never save before the file was read: that would overwrite it with defaults.
+    if (!pendingTurns.current || !settingsLoaded()) return;
+    const total = Math.round((getSettings().odometerTurns + pendingTurns.current) * 100) / 100;
+    pendingTurns.current = 0;
+    updateSettings({ odometerTurns: total });
+  };
+  useEffect(
+    () => () => {
+      coaster.current.stop();
+      clearTimeout(toastTimer.current);
+      flushOdometer();
+    },
+    [],
+  );
+  const onFingerTurn = (d: number) => {
+    const now = Date.now();
+    coaster.current.stop(); // touching the pad catches the wheel
+    const before = getSettings().odometerTurns + pendingTurns.current;
+    pendingTurns.current += Math.abs(d) / (2 * Math.PI);
+    const hit = settingsLoaded() ? crossedMilestone(before, before + Math.abs(d) / (2 * Math.PI)) : null;
+    clearTimeout(odoTimer.current);
+    odoTimer.current = setTimeout(flushOdometer, ODOMETER_SAVE_MS);
+    if (fidget.current.feed(d, now)) {
+      showToast(t.fidgetOn);
+      if (live.current.sound) playUiSound("detail");
+    } else if (hit !== null) {
+      showToast(t.milestone(hit.toLocaleString()));
+      if (live.current.sound) playUiSound("detail");
+    }
+  };
+  const onFingerRelease = (radPerSec: number) => {
+    const speed = fidget.current.coastSpeed(radPerSec, Date.now());
+    if (!speed || !n || spinningRef.current) return;
+    // Same accumulators as the finger: a game every stepDegrees, a click every hapticDegrees.
+    let stepAcc = 0;
+    let detAcc = 0;
+    const stepDeg = live.current.stepDegrees;
+    const detDeg = live.current.hapticDegrees;
+    coaster.current.start(speed, (deg) => {
+      fidget.current.touch(Date.now());
+      stepAcc += deg;
+      detAcc += deg;
+      while (Math.abs(stepAcc) >= stepDeg) {
+        const dir: 1 | -1 = stepAcc > 0 ? 1 : -1;
+        move(dir, "analog");
+        stepAcc -= dir * stepDeg;
+      }
+      while (Math.abs(detAcc) >= detDeg) {
+        detentTick();
+        detAcc -= Math.sign(detAcc) * detDeg;
+      }
+    });
   };
 
   // Ⓨ roulette: spins forward, slowing down, and lands on a random game.
@@ -351,6 +427,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   }, [rouletteOn]);
   const spin = () => {
     if (!rouletteOn || n < 2 || spinningRef.current) return;
+    coaster.current.stop();
     spinningRef.current = true;
     setRoulette("spinning");
     const steps = ROULETTE_MIN_STEPS + Math.floor(Math.random() * n); // uniform landing spot
@@ -440,6 +517,8 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
             onStep: (d: 1 | -1) => move(d, "analog"),
             detentDegrees: s.hapticDegrees,
             onDetent: detentTick,
+            onTurn: onFingerTurn,
+            onRelease: onFingerRelease,
           });
           live.current.circleOn = true;
         }, CIRCLE_START_DELAY_MS)
@@ -449,6 +528,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
     const unsubWheel = el ? subscribeScrollWheel(el, opts) : () => {};
     return () => {
       clearTimeout(startT);
+      coaster.current.stop();
       live.current.circleOn = false;
       unsubAnalog();
       unsubCursor();
@@ -627,6 +707,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
             textAlign: flip ? "right" : "left",
           }}
         >
+          <Toast text={toast.text} show={toast.show} accent={s.accentColor} />
           {rouletteOn && <RoulettePill state={roulette} accent={s.accentColor} label={roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette} />}
           {current && (
             <div
@@ -707,6 +788,33 @@ function LetterPopup({ letter, count, show, accent, label }: { letter: string; c
     >
       <span style={{ fontSize: 120, fontWeight: 800, lineHeight: 1, color: accent }}>{letter}</span>
       <span style={{ fontSize: 13, color: "#c8d1dc" }}>{label.replace("{n}", String(count))}</span>
+    </div>
+  );
+}
+
+/** Small pill above the roulette one for easter-egg messages; fades in and out. */
+function Toast({ text, show, accent }: { text: string; show: boolean; accent: string }) {
+  if (!text) return null;
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        display: "table",
+        marginBottom: 10,
+        padding: "6px 14px",
+        borderRadius: 999,
+        background: "rgba(11, 15, 22, 0.78)",
+        boxShadow: `0 0 0 1px ${accent}88`,
+        color: "#fff",
+        fontSize: 15,
+        fontWeight: 600,
+        opacity: show ? 1 : 0,
+        transform: show ? "translateY(0)" : "translateY(6px)",
+        transition: "opacity 250ms ease, transform 250ms ease",
+        pointerEvents: "none",
+      }}
+    >
+      {text}
     </div>
   );
 }

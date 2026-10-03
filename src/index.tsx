@@ -390,6 +390,11 @@ function QuickAccessPanel() {
         <PanelSectionRow>
           <div style={{ fontSize: 12, color: "#8b929a" }}>Spindeck v{PLUGIN_VERSION}</div>
         </PanelSectionRow>
+        {s.odometerTurns >= 1 && (
+          <PanelSectionRow>
+            <div style={{ fontSize: 12, color: "#8b929a" }}>{t.odometer(Math.floor(s.odometerTurns).toLocaleString())}</div>
+          </PanelSectionRow>
+        )}
       </PanelSection>
     </>
   );

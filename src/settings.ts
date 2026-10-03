@@ -24,6 +24,7 @@ export interface WheelSettings {
   soundEnabled: boolean;
   hapticEnabled: boolean;
   hapticLevel: number; // 1–9 (5 = Steam's radial-menu strength); default 7     // tick on the rotating trackpad, like Steam's radial menu
+  odometerTurns: number;     // easter egg: total trackpad turns ever spun (finger only)
   settingsVersion: number;    // bumped when a default must be re-applied to saved settings
   rawPadApi: boolean;         // advanced: subscribe to raw controller state (off by default)      // play Steam's UI sound on each wheel step   // hide the original home's top "recent games" row below the wheel
   stepDegrees: number;    // trackpad degrees per wheel step (lower = more sensitive)
@@ -48,6 +49,7 @@ export const DEFAULTS: WheelSettings = {
   soundEnabled: true,
   hapticEnabled: true,
   hapticLevel: 7,
+  odometerTurns: 0,
   settingsVersion: 6,
   rawPadApi: true,
   stepDegrees: 40,
@@ -122,6 +124,9 @@ export async function initSettings() {
   loaded = true;
   emit();
 }
+
+/** False until the saved file was read: never save derived values before that. */
+export const settingsLoaded = () => loaded;
 
 export function getSettings(): WheelSettings {
   return current;

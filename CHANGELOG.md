@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 — 2026-10-03
+
+### Added — easter eggs
+- **Dial odometer.** Counts every full trackpad turn you've ever spun (finger only). Panel → About shows the total once you've done a turn, and the wheel celebrates milestones (25, 100, 500, 1,000 … 100,000 turns). Saved a few seconds after the dial stops, never before the settings file was read; deleted on uninstall like all settings.
+- **Fidget mode.** Spin 10 full turns in one direction without stopping (within 15 s) and the wheel unlocks it with a toast. While it's on, letting go fast makes the wheel coast like a flywheel: it keeps stepping through games with haptic clicks that slow down until it stops. Touching the pad catches it; D-pad, Ⓨ or leaving the wheel stops it. It switches off after 6 s without touching the dial.
+
 ## 1.0.1 — 2026-10-03
 
 ### Changed
