@@ -6,8 +6,7 @@
 
 [![Support on Ko-fi](https://img.shields.io/badge/Support-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/jhw0806)
 
-<!-- Screenshots: add real device captures (STEAM + R1) to docs/screenshots/ -->
-<!-- ![Wheel](docs/screenshots/wheel.png) ![What's New](docs/screenshots/sections.png) -->
+![Spindeck demo: spinning the wheel and the Ⓨ roulette](docs/demo.gif)
 
 ## Features
 

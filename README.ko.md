@@ -6,7 +6,7 @@
 
 [![Ko-fi로 후원하기](https://img.shields.io/badge/후원-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/jhw0806)
 
-<!-- 스크린샷: 기기에서 찍은 화면(STEAM + R1)을 docs/screenshots/ 에 넣어 주세요 -->
+![Spindeck 데모: 휠 돌리기와 Ⓨ 룰렛](docs/demo.gif)
 
 ## 기능
 
