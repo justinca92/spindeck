@@ -33,7 +33,7 @@ No Steam settings, controller layouts or files are changed. Turning it off, disa
 Decky → ⚙️ → General → enable **Developer mode** → Developer tab → **Install Plugin from URL**:
 https://github.com/justinca92/spindeck/releases/download/v1.1.0/spindeck-1.1.0.zip
 
-Tested on Steam Deck (LCD/OLED) in game mode. Bugs and ideas: [Issues](https://github.com/justinca92/spindeck/issues)
+Tested on Steam Deck OLED in game mode. Bugs and ideas: [Issues](https://github.com/justinca92/spindeck/issues)
 Free and open source. If you enjoy it: [Ko-fi](https://ko-fi.com/jhw0806) ☕
 
 Built with AI assistance (Claude); designed, tested and tuned on-device by justinca92.

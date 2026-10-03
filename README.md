@@ -62,7 +62,7 @@ Spindeck never changes Steam's settings, controller layouts or files.
 
 - Korean text in the panel uses the plugin's own Hangul keypad, because Steam's on-screen keyboard sends empty keys to the Quick Access panel.
 - It relies on Steam's internal UI, which isn't a public API. A Steam client update can change it. The plugin then falls back to Steam's home until it's updated.
-- Tested on Steam Deck (LCD/OLED) in game mode.
+- Tested on Steam Deck OLED in game mode.
 
 ## Support
 
