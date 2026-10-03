@@ -313,6 +313,13 @@ var en = {
 var STRINGS = { ko, en };
 var useT = () => STRINGS[useLang()];
 
+// src/log.ts
+function debug(area, ...args) {
+  try {
+    console.debug(`[Spindeck:${area}]`, ...args);
+  } catch {}
+}
+
 // src/games.ts
 var APP_TYPE_GAME = 1;
 var APP_TYPE_SHORTCUT = 1073741824;
@@ -375,13 +382,6 @@ function subscribeAchievements(appid, cb) {
     cb(null);
   }
   return () => reg?.unregister?.();
-}
-
-// src/log.ts
-function debug(area, ...args) {
-  try {
-    console.debug(`[Spindeck:${area}]`, ...args);
-  } catch {}
 }
 
 // src/safety.ts
@@ -963,6 +963,7 @@ var SCROLL_SETTLE_MS = 140;
 var HEADER_REAPPLY_MS = 1000;
 var HEADER_RESCAN_MS = 5000;
 var ROULETTE_MIN_STEPS = 22;
+var ROULETTE_MAX_EXTRA_STEPS = 30;
 var ROULETTE_STEP_MS = 35;
 var ROULETTE_SLOWDOWN_MS = 320;
 var ROULETTE_EASE = 2.6;
@@ -1268,19 +1269,21 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       doneTimer.current = setTimeout(() => setRoulette("idle"), ROULETTE_RESULT_MS);
     }
   };
-  const rouletteOn = s.libraryScope !== "all";
-  useEffect(() => {
-    if (!rouletteOn && spinningRef.current)
-      stopSpin(false);
-  }, [rouletteOn]);
   const spin = () => {
-    if (!rouletteOn || n < 2 || spinningRef.current)
+    if (n < 2 || spinningRef.current)
       return;
     spinningRef.current = true;
     setRoulette("spinning");
-    const steps = ROULETTE_MIN_STEPS + Math.floor(Math.random() * n);
-    let i = 0;
     const dir = live.current.pad === "right" ? -1 : 1;
+    let steps;
+    if (n <= ROULETTE_MAX_EXTRA_STEPS) {
+      steps = ROULETTE_MIN_STEPS + Math.floor(Math.random() * n);
+    } else {
+      const target = Math.floor(Math.random() * n);
+      steps = ROULETTE_MIN_STEPS + Math.floor(Math.random() * ROULETTE_MAX_EXTRA_STEPS);
+      setSel(((target - dir * steps) % n + n) % n);
+    }
+    let i = 0;
     const tick = () => {
       advance(dir, true);
       i++;
@@ -1395,6 +1398,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     const steps = recentSteps.current = [...recentSteps.current.filter((t) => now - t < LETTER_FAST_WINDOW_MS), now];
     if (prev === L && steps.length < LETTER_FAST_STEPS)
       return;
+    debug("letter", "show", L, prev === L ? "(fast spin)" : "(new letter)");
     setPopup({ letter: L, show: true });
     clearTimeout(popupTimer.current);
     popupTimer.current = setTimeout(() => setPopup((p) => ({ ...p, show: false })), LETTER_POPUP_MS);
@@ -1469,7 +1473,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       else
         spin();
     },
-    onOptionsActionDescription: rouletteOn ? t.roulette : undefined,
+    onOptionsActionDescription: t.roulette,
     onMenuButton: (e) => {
       if (current)
         openNativeGameMenu(current.appid, current.overview, e?.currentTarget ?? rootRef.current ?? undefined, rootRef.current?.ownerDocument?.defaultView);
@@ -1534,7 +1538,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       textShadow: "0 2px 8px #000",
       textAlign: flip ? "right" : "left"
     }
-  }, rouletteOn && /* @__PURE__ */ window.SP_REACT.createElement(RoulettePill, {
+  }, /* @__PURE__ */ window.SP_REACT.createElement(RoulettePill, {
     state: roulette,
     accent: s.accentColor,
     label: roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette
@@ -1591,8 +1595,7 @@ function LetterPopup({ letter, count, show, accent, label }) {
       alignItems: "center",
       justifyContent: "center",
       gap: 2,
-      background: "rgba(11, 15, 22, 0.72)",
-      backdropFilter: "blur(18px)",
+      background: "rgba(11, 15, 22, 0.9)",
       boxShadow: "0 0 0 1px rgba(255,255,255,0.12), 0 20px 60px rgba(0,0,0,0.6)",
       opacity: show ? 1 : 0,
       transition: show ? "opacity 80ms ease-out" : "opacity 300ms ease-in",

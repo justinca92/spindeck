@@ -39,6 +39,8 @@ export const HEADER_RESCAN_MS = 5000;
 
 /** Roulette: minimum steps, start/extra delay per step, ease exponent, result display. */
 export const ROULETTE_MIN_STEPS = 22;
+/** Most extra steps on top of MIN; bigger libraries jump close to the winner first. */
+export const ROULETTE_MAX_EXTRA_STEPS = 30;
 export const ROULETTE_STEP_MS = 35;
 export const ROULETTE_SLOWDOWN_MS = 320;
 export const ROULETTE_EASE = 2.6;

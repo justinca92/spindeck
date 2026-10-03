@@ -2,6 +2,8 @@
 
 ## 1.1.2
 
+- **Ⓨ roulette works with the whole library too**, and always lands within a few seconds, even with 1000+ games.
+- **Alphabet popup fixed on the Deck** (A–Z sort).
 - **Milestone toast no longer flickers** while you spin. It sits in a fixed spot at the top, on the side opposite the wheel.
 
 Install: Decky → Developer → Install Plugin from URL →

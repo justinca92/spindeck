@@ -1,6 +1,7 @@
 import { Focusable, GamepadButton, GamepadEvent, Navigation } from "@decky/ui";
 import { CSSProperties, memo, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "./i18n";
+import { debug } from "./log";
 import { AchievementProgress, GameEntry, loadGames, openGamePage, subscribeAchievements } from "./games";
 import { subscribeCursorWheel, subscribeKeyboardAnalogWheel, subscribeScrollWheel } from "./padInput";
 import { getSettings, settingsLoaded, updateSettings, useSettings } from "./settings";
@@ -22,6 +23,7 @@ import {
   LETTER_FAST_WINDOW_MS,
   LETTER_POPUP_MS,
   ROULETTE_EASE,
+  ROULETTE_MAX_EXTRA_STEPS,
   ROULETTE_MIN_STEPS,
   ROULETTE_RESULT_MS,
   ROULETTE_SLOWDOWN_MS,
@@ -387,21 +389,25 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
       doneTimer.current = setTimeout(() => setRoulette("idle"), ROULETTE_RESULT_MS);
     }
   };
-  // No roulette for the whole library: it spins one game per step, so a
-  // 1000+ game library would spin for minutes.
-  const rouletteOn = s.libraryScope !== "all";
-  useEffect(() => {
-    if (!rouletteOn && spinningRef.current) stopSpin(false);
-  }, [rouletteOn]);
   const spin = () => {
-    if (!rouletteOn || n < 2 || spinningRef.current) return;
+    if (n < 2 || spinningRef.current) return;
     spinningRef.current = true;
     setRoulette("spinning");
-    const steps = ROULETTE_MIN_STEPS + Math.floor(Math.random() * n); // uniform landing spot
-    let i = 0;
     // Right wheel spins the other way round (counter-clockwise on screen);
     // the left wheel keeps its direction.
     const dir: 1 | -1 = live.current.pad === "right" ? -1 : 1;
+    // Small libraries: spin from where you are, MIN + 0…n-1 steps (uniform landing spot).
+    // Big ones (1000+ games would take minutes): pick the winner first, jump to
+    // a spot a short spin before it, and spin from there, so it always takes a few seconds.
+    let steps: number;
+    if (n <= ROULETTE_MAX_EXTRA_STEPS) {
+      steps = ROULETTE_MIN_STEPS + Math.floor(Math.random() * n);
+    } else {
+      const target = Math.floor(Math.random() * n);
+      steps = ROULETTE_MIN_STEPS + Math.floor(Math.random() * ROULETTE_MAX_EXTRA_STEPS);
+      setSel((((target - dir * steps) % n) + n) % n);
+    }
+    let i = 0;
     const tick = () => {
       advance(dir, true);
       i++;
@@ -529,6 +535,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
     const now = Date.now();
     const steps = (recentSteps.current = [...recentSteps.current.filter((t) => now - t < LETTER_FAST_WINDOW_MS), now]);
     if (prev === L && steps.length < LETTER_FAST_STEPS) return;
+    debug("letter", "show", L, prev === L ? "(fast spin)" : "(new letter)");
     setPopup({ letter: L, show: true });
     clearTimeout(popupTimer.current);
     popupTimer.current = setTimeout(() => setPopup((p) => ({ ...p, show: false })), LETTER_POPUP_MS);
@@ -610,7 +617,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
         if (spinningRef.current) stopSpin(true);
         else spin();
       }}
-      onOptionsActionDescription={rouletteOn ? t.roulette : undefined}
+      onOptionsActionDescription={t.roulette}
       onMenuButton={(e: any) => {
         if (current) openNativeGameMenu(current.appid, current.overview, e?.currentTarget ?? rootRef.current ?? undefined, rootRef.current?.ownerDocument?.defaultView);
       }}
@@ -676,7 +683,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
             textAlign: flip ? "right" : "left",
           }}
         >
-          {rouletteOn && <RoulettePill state={roulette} accent={s.accentColor} label={roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette} />}
+          <RoulettePill state={roulette} accent={s.accentColor} label={roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette} />
           {current && (
             <div
               style={{
@@ -745,8 +752,10 @@ function LetterPopup({ letter, count, show, accent, label }: { letter: string; c
         alignItems: "center",
         justifyContent: "center",
         gap: 2,
-        background: "rgba(11, 15, 22, 0.72)",
-        backdropFilter: "blur(18px)",
+        // No backdrop-filter: it's the one thing this popup did that the toast
+        // (which shows fine on device) doesn't, and Steam's compositor has
+        // already refused our backdrop blurs elsewhere. Solid enough instead.
+        background: "rgba(11, 15, 22, 0.9)",
         boxShadow: "0 0 0 1px rgba(255,255,255,0.12), 0 20px 60px rgba(0,0,0,0.6)",
         opacity: show ? 1 : 0,
         transition: show ? "opacity 80ms ease-out" : "opacity 300ms ease-in",
