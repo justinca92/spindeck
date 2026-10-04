@@ -12,6 +12,7 @@
 
 - **Wheel home screen.** Your library sits on a dial on the screen edge, with the selected game's hero art on the other side.
 - **Trackpad circle rotation.** Rub the trackpad in a circle to spin the wheel. It clicks with Steam's own haptic tick on that pad, with adjustable strength.
+- **L1 / R1 collections.** Flip between your base view and the Steam collections you pick in the panel (Favorites, your own collections). Each view remembers its game.
 - **Alphabet popup.** In A–Z sort of the whole library, a big letter shows when the first letter changes and while you spin fast.
 - **Today's game.** Press Ⓨ to spin a roulette that lands on a random game. Press Ⓨ again to stop it on the spot.
 - **Dial odometer.** Counts every turn you've ever spun. See the total in the panel's About section, with milestone celebrations along the way.
@@ -25,6 +26,7 @@
 |---|---|
 | Trackpad circle (left by default) | Spin the wheel |
 | D-pad ◀ ▶ | Previous / next game |
+| L1 / R1 | Previous / next view: your base view, then the Steam collections you picked (e.g. ★ Favorites) |
 | Ⓐ | Open the game's page |
 | ≡ | Steam's game menu (Play, Properties, …) |
 | Ⓨ | Roulette: "Today's game?" (Ⓨ again stops it) |

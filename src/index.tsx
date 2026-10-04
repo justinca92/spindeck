@@ -12,6 +12,7 @@ import {
 } from "@decky/ui";
 import { definePlugin, routerHook } from "@decky/api";
 import { WheelPage } from "./WheelPage";
+import { listCollections } from "./games";
 import { composeHangul } from "./hangul";
 import { openHangulPad } from "./HangulPad";
 import { useLang, detected, LangSetting } from "./locale";
@@ -254,6 +255,7 @@ function QuickAccessPanel() {
             onChange={(o) => updateSettings({ sortMode: o.data as SortMode })}
           />
         </PanelSectionRow>
+        <ShelfPicker t={t} picked={s.shelfCollections} onChange={(ids) => updateSettings({ shelfCollections: ids })} />
       </PanelSection>
 
       <PanelSection title={t.display}>
@@ -396,6 +398,33 @@ function QuickAccessPanel() {
           </PanelSectionRow>
         )}
       </PanelSection>
+    </>
+  );
+}
+
+/** L1/R1 collections: one toggle per Steam collection (Favorites first). */
+function ShelfPicker({ t, picked, onChange }: { t: Strings; picked: string[]; onChange: (ids: string[]) => void }) {
+  const all = listCollections();
+  return (
+    <>
+      <PanelSectionRow>
+        <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6 }}>{t.shelf}</div>
+        <div style={{ fontSize: 12, color: "#8b929a", marginTop: 2 }}>{all.length ? t.shelfDesc : t.shelfNone}</div>
+      </PanelSectionRow>
+      {all.map((c) => (
+        <PanelSectionRow key={c.id}>
+          <ToggleField
+            label={(c.id === "favorite" ? "★ " : "") + c.name}
+            description={t.shelfCount(c.count)}
+            checked={picked.includes(c.id)}
+            onChange={(on) => {
+              const next = on ? [...picked.filter((id) => id !== c.id), c.id] : picked.filter((id) => id !== c.id);
+              // Keep Steam's order, whatever order they were switched on in.
+              onChange(all.map((x) => x.id).filter((id) => next.includes(id)));
+            }}
+          />
+        </PanelSectionRow>
+      ))}
     </>
   );
 }

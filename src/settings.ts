@@ -16,6 +16,7 @@ export interface WheelSettings {
   accentColor: string;    // CSS color for highlights
   libraryScope: LibraryScope; // installed games only, or the whole library
   sortMode: SortMode;         // recently played, or A–Z
+  shelfCollections: string[]; // Steam collection ids L1/R1 cycles through on the wheel (besides the base view)
   capsuleScale: number;       // capsule art size multiplier (1 = 80×120)
   textScale: number;          // game title size multiplier
   wheelSizePct: number;       // wheel radius as % of screen width
@@ -41,6 +42,7 @@ export const DEFAULTS: WheelSettings = {
   accentColor: "#66c0f4",
   libraryScope: "installed",
   sortMode: "recent",
+  shelfCollections: [],
   capsuleScale: 1.2,
   textScale: 0.7,
   wheelSizePct: 32,

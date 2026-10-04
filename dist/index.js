@@ -38,6 +38,7 @@ var DEFAULTS = {
   accentColor: "#66c0f4",
   libraryScope: "installed",
   sortMode: "recent",
+  shelfCollections: [],
   capsuleScale: 1.2,
   textScale: 0.7,
   wheelSizePct: 32,
@@ -214,6 +215,10 @@ var ko = {
   sort: "정렬",
   recent: "최근 플레이",
   alpha: "알파벳순 (A–Z)",
+  shelf: "L1/R1 모음집",
+  shelfDesc: "휠 화면에서 L1/R1로 넘겨 볼 스팀 모음집을 고르세요. 기본 화면은 위의 '보기'예요.",
+  shelfNone: "스팀 라이브러리에 모음집이 없어요. 스팀 라이브러리에서 모음집을 만들거나 즐겨찾기를 추가해 보세요.",
+  shelfCount: (n) => `게임 ${n}개`,
   display: "표시",
   heroSize: "히어로 이미지 크기",
   pctOfWidth: "화면 너비 대비 %",
@@ -271,6 +276,10 @@ var en = {
   sort: "Sort",
   recent: "Recently played",
   alpha: "Alphabetical (A–Z)",
+  shelf: "L1/R1 collections",
+  shelfDesc: 'Pick the Steam collections L1/R1 flips through on the wheel. The base view is "Show" above.',
+  shelfNone: "No collections in your Steam library yet. Make one in the Steam library, or favourite a game.",
+  shelfCount: (n) => `${n} games`,
   display: "Display",
   heroSize: "Hero art size",
   pctOfWidth: "% of screen width",
@@ -351,7 +360,35 @@ function loadGames(installedOnly, sort) {
 }
 function readGames(installedOnly, sort) {
   const coll = collectionStore?.GetCollection?.("type-games") ?? collectionStore?.allGamesCollection ?? collectionStore?.allAppsCollection;
-  const apps = coll?.allApps ?? [];
+  return toEntries(coll?.allApps ?? [], installedOnly, sort);
+}
+function listCollections() {
+  try {
+    const out = [];
+    const size = (c) => (c?.allApps ?? c?.visibleApps ?? []).length;
+    const fav = collectionStore?.GetCollection?.("favorite");
+    if (fav)
+      out.push({ id: "favorite", name: fav.displayName || "Favorites", count: size(fav) });
+    const user = collectionStore?.userCollections ?? [];
+    for (const c of user) {
+      if (!c?.id || c.id === "favorite" || c.id === "hidden" || out.some((o) => o.id === c.id))
+        continue;
+      out.push({ id: String(c.id), name: c.displayName || String(c.id), count: size(c) });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+function loadCollectionGames(id, sort) {
+  try {
+    const c = collectionStore?.GetCollection?.(id);
+    return toEntries(c?.allApps ?? c?.visibleApps ?? [], false, sort);
+  } catch {
+    return [];
+  }
+}
+function toEntries(apps, installedOnly, sort) {
   const list = apps.filter((a) => a && (a.app_type === APP_TYPE_GAME || a.app_type === APP_TYPE_SHORTCUT)).map((a) => ({
     appid: a.appid,
     gameid: String(a.m_gameid ?? a.gameid ?? a.appid),
@@ -974,6 +1011,9 @@ var LETTER_FAST_WINDOW_MS = 600;
 var ODOMETER_SAVE_MS = 3000;
 var TOAST_MS = 3500;
 var TOAST_TOP_PX = 84;
+var LETTER_POPUP_MIN_GAMES = 100;
+var VIEW_STRIP_MS = 1800;
+var VIEW_STRIP_TOP_PX = 44;
 
 // src/WheelPage.tsx
 var BASE_CAPSULE_W = 80;
@@ -1181,12 +1221,40 @@ function useSettled(value, ms) {
   }, [value, ms]);
   return v;
 }
+var lastPick = new Map;
+var lastViewKey = null;
 function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = true }) {
   const s = useSettings();
   const t = useT();
-  const games = useMemo(() => loadGames(s.libraryScope === "installed", s.sortMode), [s.libraryScope, s.sortMode]);
+  const shelfKey = s.shelfCollections.join("|");
+  const views = useMemo(() => {
+    const base = { key: `base:${s.libraryScope}`, name: s.libraryScope === "installed" ? t.installed : t.all, collection: null };
+    const picked = listCollections().filter((c) => s.shelfCollections.includes(c.id));
+    return [base, ...picked.map((c) => ({ key: `coll:${c.id}`, name: c.name, collection: c.id }))];
+  }, [s.libraryScope, shelfKey, t]);
+  const [viewKey, setViewKey] = useState(() => lastViewKey ?? views[0].key);
+  const view = views.find((v) => v.key === viewKey) ?? views[0];
+  useEffect(() => {
+    lastViewKey = view.key;
+  }, [view.key]);
+  const games = useMemo(() => view.collection ? loadCollectionGames(view.collection, s.sortMode) : loadGames(s.libraryScope === "installed", s.sortMode), [view.key, s.sortMode]);
   const n = games.length;
-  const [sel, setSel] = useState(0);
+  const restoreSel = (list) => {
+    const id = lastPick.get(view.key);
+    const i = id === undefined ? -1 : list.findIndex((g) => g.appid === id);
+    return i < 0 ? 0 : i;
+  };
+  const [sel, setSel] = useState(() => restoreSel(games));
+  const [selList, setSelList] = useState(games);
+  if (selList !== games) {
+    setSelList(games);
+    setSel(restoreSel(games));
+  }
+  useEffect(() => {
+    const g = games[sel];
+    if (g)
+      lastPick.set(view.key, g.appid);
+  }, [sel, games, view.key]);
   const rootRef = useRef(null);
   const motion = useMemo(() => new WheelMotion, []);
   useEffect(() => () => motion.stop(), [motion]);
@@ -1250,6 +1318,22 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       if (live.current.sound)
         playUiSound("detail");
     }
+  };
+  const [strip, setStrip] = useState(false);
+  const stripTimer = useRef(null);
+  useEffect(() => () => clearTimeout(stripTimer.current), []);
+  const switchView = (d) => {
+    if (views.length < 2)
+      return;
+    if (spinningRef.current)
+      stopSpin(false);
+    const i = Math.max(0, views.findIndex((v) => v.key === view.key));
+    setViewKey(views[(i + d + views.length) % views.length].key);
+    if (live.current.sound)
+      playUiSound("screen");
+    setStrip(true);
+    clearTimeout(stripTimer.current);
+    stripTimer.current = setTimeout(() => setStrip(false), VIEW_STRIP_MS);
   };
   const spinTimer = useRef(null);
   const doneTimer = useRef(null);
@@ -1374,7 +1458,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   }, [s.stepDegrees, s.hapticDegrees, s.rotatePad, s.rawPadApi, n, inputLive]);
   const current = games[sel];
   const heroSel = useSettled(sel, HERO_SETTLE_MS);
-  const alpha = s.sortMode === "alpha" && s.libraryScope === "all";
+  const alpha = s.sortMode === "alpha" && (view.collection ? n >= LETTER_POPUP_MIN_GAMES : s.libraryScope === "all");
   const letters = useMemo(() => games.map((g) => indexLetter(g.name)), [games]);
   const letterCounts = useMemo(() => {
     const m = new Map;
@@ -1387,8 +1471,14 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   const popupTimer = useRef(null);
   useEffect(() => () => clearTimeout(popupTimer.current), []);
   const recentSteps = useRef([]);
+  const lettersSeen = useRef(letters);
   useEffect(() => {
     const L = letters[sel];
+    if (lettersSeen.current !== letters) {
+      lettersSeen.current = letters;
+      lastLetter.current = L ?? null;
+      return;
+    }
     if (!alpha || !L)
       return;
     const prev = lastLetter.current;
@@ -1457,7 +1547,15 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     autoFocus: true,
     noFocusRing: true,
     onGamepadDirection: onDir,
-    onButtonDown: onPadButton,
+    onButtonDown: (e) => {
+      const b = e.detail.button;
+      if ((b === GamepadButton.BUMPER_LEFT || b === GamepadButton.BUMPER_RIGHT) && views.length > 1) {
+        consume(e);
+        switchView(b === GamepadButton.BUMPER_LEFT ? -1 : 1);
+        return;
+      }
+      onPadButton(e);
+    },
     onButtonUp: onPadButton,
     onOKButton: () => {
       if (!current)
@@ -1524,6 +1622,11 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     show: popup.show,
     accent: s.accentColor,
     label: t.letterCount
+  }), views.length > 1 && /* @__PURE__ */ window.SP_REACT.createElement(ViewStrip, {
+    views,
+    current: view.key,
+    show: strip,
+    accent: s.accentColor
   }), /* @__PURE__ */ window.SP_REACT.createElement(Toast, {
     text: toast.text,
     show: toast.show,
@@ -1540,7 +1643,9 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       textShadow: "0 2px 8px #000",
       textAlign: flip ? "right" : "left"
     }
-  }, /* @__PURE__ */ window.SP_REACT.createElement(RoulettePill, {
+  }, views.length > 1 && /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: { fontSize: 13, fontWeight: 700, color: s.accentColor, marginBottom: 8, letterSpacing: "0.04em" }
+  }, view.collection === "favorite" ? "★ " : "", view.name), /* @__PURE__ */ window.SP_REACT.createElement(RoulettePill, {
     state: roulette,
     accent: s.accentColor,
     label: roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette
@@ -1607,6 +1712,43 @@ function LetterPopup({ letter, count, show, accent, label }) {
   }, letter), /* @__PURE__ */ window.SP_REACT.createElement("span", {
     style: { fontSize: 13, color: "#c8d1dc" }
   }, label.replace("{n}", String(count))));
+}
+function ViewStrip({ views, current, show, accent }) {
+  const i = Math.max(0, views.findIndex((v) => v.key === current));
+  const at = (d) => views[(i + d + views.length) % views.length];
+  const label = (v) => (v.collection === "favorite" ? "★ " : "") + v.name;
+  const side = { color: "#8b929a", fontSize: 15, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+  const key = { fontSize: 12, fontWeight: 800, color: "#c8d1dc", background: "rgba(255,255,255,0.14)", borderRadius: 6, padding: "2px 7px" };
+  return /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    "aria-hidden": "true",
+    style: {
+      position: "absolute",
+      top: VIEW_STRIP_TOP_PX,
+      left: "50%",
+      transform: "translateX(-50%)",
+      display: "flex",
+      alignItems: "center",
+      gap: 14,
+      padding: "8px 16px",
+      borderRadius: 999,
+      background: "rgba(11, 15, 22, 0.85)",
+      opacity: show ? 1 : 0,
+      transition: show ? "opacity 120ms ease-out" : "opacity 400ms ease-in",
+      pointerEvents: "none",
+      zIndex: 260,
+      whiteSpace: "nowrap"
+    }
+  }, /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    style: key
+  }, "L1"), views.length > 2 && /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    style: side
+  }, label(at(-1))), /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    style: { color: accent, fontSize: 18, fontWeight: 800 }
+  }, label(at(0))), /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    style: side
+  }, label(at(1))), /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    style: key
+  }, "R1"));
 }
 function Toast({ text, show, accent, side }) {
   if (!text)
@@ -2326,7 +2468,7 @@ function WheelHome({ original }) {
 // src/links.ts
 var KOFI_URL = "https://ko-fi.com/jhw0806";
 var REPO_URL = "https://github.com/justinca92/spindeck";
-var PLUGIN_VERSION = "1.1.2";
+var PLUGIN_VERSION = "1.3.0";
 
 // src/index.tsx
 var ROUTE = "/spindeck";
@@ -2506,7 +2648,11 @@ function QuickAccessPanel() {
     ],
     selectedOption: s.sortMode,
     onChange: (o) => updateSettings({ sortMode: o.data })
-  }))), /* @__PURE__ */ window.SP_REACT.createElement(PanelSection, {
+  })), /* @__PURE__ */ window.SP_REACT.createElement(ShelfPicker, {
+    t,
+    picked: s.shelfCollections,
+    onChange: (ids) => updateSettings({ shelfCollections: ids })
+  })), /* @__PURE__ */ window.SP_REACT.createElement(PanelSection, {
     title: t.display
   }, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(SliderField, {
     label: t.heroSize,
@@ -2603,6 +2749,24 @@ function QuickAccessPanel() {
   }, "Spindeck v", PLUGIN_VERSION)), s.odometerTurns >= 1 && /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { fontSize: 12, color: "#8b929a" }
   }, t.odometer(Math.floor(s.odometerTurns).toLocaleString())))));
+}
+function ShelfPicker({ t, picked, onChange }) {
+  const all = listCollections();
+  return /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: { fontSize: 13, fontWeight: 700, marginTop: 6 }
+  }, t.shelf), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: { fontSize: 12, color: "#8b929a", marginTop: 2 }
+  }, all.length ? t.shelfDesc : t.shelfNone)), all.map((c) => /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, {
+    key: c.id
+  }, /* @__PURE__ */ window.SP_REACT.createElement(ToggleField, {
+    label: (c.id === "favorite" ? "★ " : "") + c.name,
+    description: t.shelfCount(c.count),
+    checked: picked.includes(c.id),
+    onChange: (on) => {
+      const next = on ? [...picked.filter((id) => id !== c.id), c.id] : picked.filter((id) => id !== c.id);
+      onChange(all.map((x) => x.id).filter((id) => next.includes(id)));
+    }
+  }))));
 }
 var src_default = definePlugin(() => {
   initSettings();

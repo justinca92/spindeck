@@ -1,5 +1,13 @@
 # Release notes
 
+## 1.3.0
+
+- **L1 / R1 collections.** Pick Steam collections in the panel (★ Favorites, your own collections) and flip between them and your base view with L1/R1 on the wheel.
+- **The wheel remembers your spot.** Coming back from a game page, you're on the same game again, in every view.
+
+Install: Decky → Developer → Install Plugin from URL →
+https://github.com/justinca92/spindeck/releases/download/v1.3.0/spindeck-1.3.0.zip
+
 ## 1.1.2
 
 - **Ⓨ roulette works with the whole library too**, and always lands within a few seconds, even with 1000+ games.

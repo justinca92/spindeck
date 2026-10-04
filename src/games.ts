@@ -59,8 +59,45 @@ function readGames(installedOnly: boolean, sort: "recent" | "alpha"): GameEntry[
     collectionStore?.GetCollection?.("type-games") ??
     collectionStore?.allGamesCollection ??
     collectionStore?.allAppsCollection;
-  const apps: any[] = coll?.allApps ?? [];
+  return toEntries(coll?.allApps ?? [], installedOnly, sort);
+}
 
+/** A Steam collection (Favorites or one of the user's own) the wheel can show with L1/R1. */
+export interface CollectionInfo {
+  id: string;
+  name: string;
+  count: number;
+}
+
+/** Favorites first, then the user's collections in Steam's order. Hidden is never offered. */
+export function listCollections(): CollectionInfo[] {
+  try {
+    const out: CollectionInfo[] = [];
+    const size = (c: any) => (c?.allApps ?? c?.visibleApps ?? []).length;
+    const fav = collectionStore?.GetCollection?.("favorite");
+    if (fav) out.push({ id: "favorite", name: fav.displayName || "Favorites", count: size(fav) });
+    const user: any[] = collectionStore?.userCollections ?? [];
+    for (const c of user) {
+      if (!c?.id || c.id === "favorite" || c.id === "hidden" || out.some((o) => o.id === c.id)) continue;
+      out.push({ id: String(c.id), name: c.displayName || String(c.id), count: size(c) });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Games in one collection (installed or not: a collection is the user's own pick). */
+export function loadCollectionGames(id: string, sort: "recent" | "alpha"): GameEntry[] {
+  try {
+    const c = collectionStore?.GetCollection?.(id);
+    return toEntries(c?.allApps ?? c?.visibleApps ?? [], false, sort);
+  } catch {
+    return [];
+  }
+}
+
+function toEntries(apps: any[], installedOnly: boolean, sort: "recent" | "alpha"): GameEntry[] {
   const list: GameEntry[] = apps
     .filter((a) => a && (a.app_type === APP_TYPE_GAME || a.app_type === APP_TYPE_SHORTCUT))
     .map((a) => ({

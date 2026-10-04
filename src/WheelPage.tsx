@@ -2,7 +2,7 @@ import { Focusable, GamepadButton, GamepadEvent, Navigation } from "@decky/ui";
 import { CSSProperties, memo, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "./i18n";
 import { debug } from "./log";
-import { AchievementProgress, GameEntry, loadGames, openGamePage, subscribeAchievements } from "./games";
+import { AchievementProgress, GameEntry, listCollections, loadCollectionGames, loadGames, openGamePage, subscribeAchievements } from "./games";
 import { subscribeCursorWheel, subscribeKeyboardAnalogWheel, subscribeScrollWheel } from "./padInput";
 import { getSettings, settingsLoaded, updateSettings, useSettings } from "./settings";
 import { crossedMilestone } from "./odometer";
@@ -17,6 +17,9 @@ import {
   HAPTIC_MUTE_AFTER_B_MS,
   HERO_SETTLE_MS,
   LETTER_FAST_STEPS,
+  LETTER_POPUP_MIN_GAMES,
+  VIEW_STRIP_MS,
+  VIEW_STRIP_TOP_PX,
   ODOMETER_SAVE_MS,
   TOAST_MS,
   TOAST_TOP_PX,
@@ -284,6 +287,19 @@ function useSettled<T>(value: T, ms: number): T {
   return v;
 }
 
+// Runtime only (never saved): the last game picked in each view, and the last
+// view. The wheel unmounts while a game page is open; this brings you back to
+// the same game instead of the first one. Looked up by appid, so a re-sorted
+// list (a game you just played moving to the top) still lands on it.
+const lastPick = new Map<string, number>();
+let lastViewKey: string | null = null;
+
+interface WheelView {
+  key: string;
+  name: string;
+  collection: string | null; // null = the base view (installed / whole library)
+}
+
 interface WheelPageProps {
   mode?: "home" | "page";
   onWheelFocus?: () => void;      // home: focus came back to the wheel
@@ -294,9 +310,39 @@ interface WheelPageProps {
 export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = true }: WheelPageProps) {
   const s = useSettings();
   const t = useT();
-  const games = useMemo<GameEntry[]>(() => loadGames(s.libraryScope === "installed", s.sortMode), [s.libraryScope, s.sortMode]);
+  // Views L1/R1 cycles through: the base view, then the collections picked in the panel.
+  const shelfKey = s.shelfCollections.join("|");
+  const views = useMemo<WheelView[]>(() => {
+    const base: WheelView = { key: `base:${s.libraryScope}`, name: s.libraryScope === "installed" ? t.installed : t.all, collection: null };
+    const picked = listCollections().filter((c) => s.shelfCollections.includes(c.id));
+    return [base, ...picked.map((c) => ({ key: `coll:${c.id}`, name: c.name, collection: c.id }))];
+  }, [s.libraryScope, shelfKey, t]);
+  const [viewKey, setViewKey] = useState<string>(() => lastViewKey ?? views[0].key);
+  const view = views.find((v) => v.key === viewKey) ?? views[0];
+  useEffect(() => {
+    lastViewKey = view.key;
+  }, [view.key]);
+  const games = useMemo<GameEntry[]>(
+    () => (view.collection ? loadCollectionGames(view.collection, s.sortMode) : loadGames(s.libraryScope === "installed", s.sortMode)),
+    [view.key, s.sortMode],
+  );
   const n = games.length;
-  const [sel, setSel] = useState(0);
+  const restoreSel = (list: GameEntry[]) => {
+    const id = lastPick.get(view.key);
+    const i = id === undefined ? -1 : list.findIndex((g) => g.appid === id);
+    return i < 0 ? 0 : i;
+  };
+  const [sel, setSel] = useState(() => restoreSel(games));
+  // New list (view switched, re-sorted): jump to that view's last game right away.
+  const [selList, setSelList] = useState(games);
+  if (selList !== games) {
+    setSelList(games);
+    setSel(restoreSel(games));
+  }
+  useEffect(() => {
+    const g = games[sel];
+    if (g) lastPick.set(view.key, g.appid);
+  }, [sel, games, view.key]);
   const rootRef = useRef<HTMLDivElement>(null);
   const motion = useMemo(() => new WheelMotion(), []);
   useEffect(() => () => motion.stop(), [motion]);
@@ -367,6 +413,21 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
       if (live.current.sound) playUiSound("detail");
     }
   };
+  // L1/R1: previous / next view. A strip at the top shows where you are for a moment.
+  const [strip, setStrip] = useState(false);
+  const stripTimer = useRef<any>(null);
+  useEffect(() => () => clearTimeout(stripTimer.current), []);
+  const switchView = (d: 1 | -1) => {
+    if (views.length < 2) return;
+    if (spinningRef.current) stopSpin(false);
+    const i = Math.max(0, views.findIndex((v) => v.key === view.key));
+    setViewKey(views[(i + d + views.length) % views.length].key);
+    if (live.current.sound) playUiSound("screen");
+    setStrip(true);
+    clearTimeout(stripTimer.current);
+    stripTimer.current = setTimeout(() => setStrip(false), VIEW_STRIP_MS);
+  };
+
   // Ⓨ roulette: spins forward, slowing down, and lands on a random game.
   // User rotation is ignored while it spins; Ⓨ again stops it on the spot.
   const spinTimer = useRef<any>(null);
@@ -511,9 +572,9 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   const current = games[sel];
   const heroSel = useSettled(sel, HERO_SETTLE_MS);
 
-  // Alphabet popup: A–Z sort of the whole library only. Installed games are a
-  // short list you can see at a glance, so it isn't needed there.
-  const alpha = s.sortMode === "alpha" && s.libraryScope === "all";
+  // Alphabet popup: A–Z sort of a big list only (the whole library, or a big
+  // collection). Installed games are a short list you can see at a glance.
+  const alpha = s.sortMode === "alpha" && (view.collection ? n >= LETTER_POPUP_MIN_GAMES : s.libraryScope === "all");
   const letters = useMemo(() => games.map((g) => indexLetter(g.name)), [games]);
   const letterCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -525,8 +586,15 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   const popupTimer = useRef<any>(null);
   useEffect(() => () => clearTimeout(popupTimer.current), []);
   const recentSteps = useRef<number[]>([]);
+  const lettersSeen = useRef(letters);
   useEffect(() => {
     const L = letters[sel];
+    if (lettersSeen.current !== letters) {
+      // Another list (L1/R1 view switch): start fresh, no popup for the jump itself.
+      lettersSeen.current = letters;
+      lastLetter.current = L ?? null;
+      return;
+    }
     if (!alpha || !L) return;
     const prev = lastLetter.current;
     lastLetter.current = L;
@@ -604,7 +672,15 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
       autoFocus
       noFocusRing
       onGamepadDirection={onDir}
-      onButtonDown={onPadButton}
+      onButtonDown={(e: GamepadEvent) => {
+        const b = e.detail.button;
+        if ((b === GamepadButton.BUMPER_LEFT || b === GamepadButton.BUMPER_RIGHT) && views.length > 1) {
+          consume(e);
+          switchView(b === GamepadButton.BUMPER_LEFT ? -1 : 1);
+          return;
+        }
+        onPadButton(e);
+      }}
       onButtonUp={onPadButton}
       // Ⓐ opens Steam's own game page.
       onOKButton={() => {
@@ -667,6 +743,10 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
           <LetterPopup letter={popup.letter} count={letterCounts.get(popup.letter) ?? 0} show={popup.show} accent={s.accentColor} label={t.letterCount} />
         )}
 
+        {views.length > 1 && (
+          <ViewStrip views={views} current={view.key} show={strip} accent={s.accentColor} />
+        )}
+
         {/* Fixed spot on the art side, out of the corner block's flow: that block
             resizes with every game while spinning, which made the toast jump. */}
         <Toast text={toast.text} show={toast.show} accent={s.accentColor} side={flip ? "right" : "left"} />
@@ -686,6 +766,12 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
             textAlign: flip ? "right" : "left",
           }}
         >
+          {views.length > 1 && (
+            <div style={{ fontSize: 13, fontWeight: 700, color: s.accentColor, marginBottom: 8, letterSpacing: "0.04em" }}>
+              {view.collection === "favorite" ? "★ " : ""}
+              {view.name}
+            </div>
+          )}
           <RoulettePill state={roulette} accent={s.accentColor} label={roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette} />
           {current && (
             <div
@@ -765,6 +851,46 @@ function LetterPopup({ letter, count, show, accent, label }: { letter: string; c
     >
       <span style={{ fontSize: 120, fontWeight: 800, lineHeight: 1, color: accent }}>{letter}</span>
       <span style={{ fontSize: 13, color: "#c8d1dc" }}>{label.replace("{n}", String(count))}</span>
+    </div>
+  );
+}
+
+/**
+ * L1/R1 view strip, top centre: the previous, current and next view, shown
+ * for a moment after switching. Non-interactive.
+ */
+function ViewStrip({ views, current, show, accent }: { views: WheelView[]; current: string; show: boolean; accent: string }) {
+  const i = Math.max(0, views.findIndex((v) => v.key === current));
+  const at = (d: number) => views[(i + d + views.length) % views.length];
+  const label = (v: WheelView) => (v.collection === "favorite" ? "★ " : "") + v.name;
+  const side: CSSProperties = { color: "#8b929a", fontSize: 15, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+  const key: CSSProperties = { fontSize: 12, fontWeight: 800, color: "#c8d1dc", background: "rgba(255,255,255,0.14)", borderRadius: 6, padding: "2px 7px" };
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        top: VIEW_STRIP_TOP_PX,
+        left: "50%",
+        transform: "translateX(-50%)",
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        padding: "8px 16px",
+        borderRadius: 999,
+        background: "rgba(11, 15, 22, 0.85)",
+        opacity: show ? 1 : 0,
+        transition: show ? "opacity 120ms ease-out" : "opacity 400ms ease-in",
+        pointerEvents: "none",
+        zIndex: 260,
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span style={key}>L1</span>
+      {views.length > 2 && <span style={side}>{label(at(-1))}</span>}
+      <span style={{ color: accent, fontSize: 18, fontWeight: 800 }}>{label(at(0))}</span>
+      <span style={side}>{label(at(1))}</span>
+      <span style={key}>R1</span>
     </div>
   );
 }
