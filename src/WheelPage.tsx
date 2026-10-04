@@ -6,6 +6,7 @@ import { AchievementProgress, GameEntry, listCollections, loadCollectionGames, l
 import { subscribeCursorWheel, subscribeKeyboardAnalogWheel, subscribeScrollWheel } from "./padInput";
 import { getSettings, settingsLoaded, updateSettings, useSettings } from "./settings";
 import { crossedMilestone } from "./odometer";
+import { onWheelReset } from "./reset";
 import { playUiSound } from "./sound";
 import { openNativeGameMenu } from "./nativeMenu";
 import { wheelTick } from "./haptics";
@@ -292,6 +293,10 @@ function useSettled<T>(value: T, ms: number): T {
 // list (a game you just played moving to the top) still lands on it.
 const lastPick = new Map<string, number>();
 let lastViewKey: string | null = null;
+onWheelReset(() => {
+  lastPick.clear();
+  lastViewKey = null;
+});
 
 interface WheelView {
   key: string;
@@ -679,41 +684,59 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
 
   const flip = s.rotatePad === "left"; // left pad → wheel on the left edge, art on the right
 
+  // Steam's Focusable can keep the button handlers from an earlier render
+  // (seen on device: Ⓐ kept opening one game, L1/R1 ignored a newly set
+  // collection). So the props are stable trampolines that always call the
+  // handlers from the latest render.
+  const latest = useRef<Record<string, (e: any) => any>>({});
+  latest.current = {
+    dir: onDir,
+    down: (e: GamepadEvent) => {
+      const b = e.detail.button;
+      debug("buttons", "down", b, { L1: GamepadButton.BUMPER_LEFT, R1: GamepadButton.BUMPER_RIGHT, views: views.map((v) => v.key) });
+      if ((b === GamepadButton.BUMPER_LEFT || b === GamepadButton.BUMPER_RIGHT) && views.length > 1) {
+        consume(e);
+        switchView(b === GamepadButton.BUMPER_LEFT ? -1 : 1);
+        return;
+      }
+      onPadButton(e);
+    },
+    up: onPadButton,
+    // Ⓐ opens Steam's own game page.
+    ok: () => {
+      if (!current) return;
+      if (s.soundEnabled) playUiSound("detail");
+      openGamePage(current);
+    },
+    // Confirmed on device: Ⓨ arrives as "Options", ≡ as "Menu".
+    options: (e: any) => {
+      consume(e);
+      debug("roulette", "Y", { spinning: spinningRef.current, games: n });
+      if (spinningRef.current) stopSpin(true);
+      else spin();
+    },
+    menu: (e: any) => {
+      if (current) openNativeGameMenu(current.appid, current.overview, e?.currentTarget ?? rootRef.current ?? undefined, rootRef.current?.ownerDocument?.defaultView);
+    },
+  };
+  const call = useMemo(() => {
+    const f = (name: string) => (e: any) => latest.current[name]?.(e);
+    return { dir: f("dir"), down: f("down"), up: f("up"), ok: f("ok"), options: f("options"), menu: f("menu") };
+  }, []);
+
   return (
     <Focusable
       // @ts-ignore autoFocus exists at runtime
       autoFocus
       noFocusRing
-      onGamepadDirection={onDir}
-      onButtonDown={(e: GamepadEvent) => {
-        const b = e.detail.button;
-        debug("buttons", "down", b, { L1: GamepadButton.BUMPER_LEFT, R1: GamepadButton.BUMPER_RIGHT, views: views.map((v) => v.key) });
-        if ((b === GamepadButton.BUMPER_LEFT || b === GamepadButton.BUMPER_RIGHT) && views.length > 1) {
-          consume(e);
-          switchView(b === GamepadButton.BUMPER_LEFT ? -1 : 1);
-          return;
-        }
-        onPadButton(e);
-      }}
-      onButtonUp={onPadButton}
-      // Ⓐ opens Steam's own game page.
-      onOKButton={() => {
-        if (!current) return;
-        if (s.soundEnabled) playUiSound("detail");
-        openGamePage(current);
-      }}
+      onGamepadDirection={call.dir}
+      onButtonDown={call.down}
+      onButtonUp={call.up}
+      onOKButton={call.ok}
       onOKActionDescription={t.gamePage}
-      // Confirmed on device: Ⓨ arrives as "Options", ≡ as "Menu".
-      onOptionsButton={(e: any) => {
-        consume(e);
-        debug("roulette", "Y", { spinning: spinningRef.current, games: n });
-        if (spinningRef.current) stopSpin(true);
-        else spin();
-      }}
+      onOptionsButton={call.options}
       onOptionsActionDescription={t.roulette}
-      onMenuButton={(e: any) => {
-        if (current) openNativeGameMenu(current.appid, current.overview, e?.currentTarget ?? rootRef.current ?? undefined, rootRef.current?.ownerDocument?.defaultView);
-      }}
+      onMenuButton={call.menu}
       onMenuActionDescription={t.options}
       onCancelButton={mode === "page" ? () => Navigation.NavigateBack() : undefined}
       onGamepadFocus={() => {

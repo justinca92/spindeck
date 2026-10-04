@@ -259,6 +259,8 @@ var ko = {
   support: "개발자 후원하기 (Ko-fi)",
   supportDesc: "Spindeck이 마음에 드셨다면 커피 한 잔으로 응원해 주세요",
   sourceAndUpdates: "GitHub: 소스 코드 · 업데이트",
+  reload: "휠 새로고침",
+  reloadDesc: "화면이 꼬였을 때 휠을 처음 상태로 다시 불러와요. 설정은 그대로예요.",
   langAuto: "자동 (스팀 언어)",
   playtime: (min) => !min ? "아직 플레이 안 함" : min < 60 ? `플레이 시간 ${min}분` : `플레이 시간 ${fmtHours(min)}시간`,
   roulette: "오늘의 게임은?",
@@ -319,6 +321,8 @@ var en = {
   support: "Support the developer (Ko-fi)",
   supportDesc: "If you enjoy Spindeck, a coffee keeps it going",
   sourceAndUpdates: "GitHub: source code · updates",
+  reload: "Reload the wheel",
+  reloadDesc: "If the screen gets stuck, reload the wheel from scratch. Settings are kept.",
   langAuto: "Auto (Steam language)",
   playtime: (min) => !min ? "NOT PLAYED YET" : min < 60 ? `PLAYTIME ${min} MIN` : `PLAYTIME ${fmtHours(min)} HRS`,
   roulette: "Today's game?",
@@ -613,6 +617,32 @@ function crossedMilestone(before, after) {
     if (before < m && after >= m)
       hit = m;
   return hit;
+}
+
+// src/reset.ts
+var generation = 0;
+var listeners3 = new Set;
+var resetHooks = new Set;
+function requestWheelReset() {
+  for (const f of resetHooks)
+    f();
+  generation++;
+  for (const l of listeners3)
+    l();
+}
+function onWheelReset(f) {
+  resetHooks.add(f);
+}
+function useWheelGeneration() {
+  const [g, setG] = useState(generation);
+  useEffect(() => {
+    const l = () => setG(generation);
+    listeners3.add(l);
+    return () => {
+      listeners3.delete(l);
+    };
+  }, []);
+  return g;
 }
 
 // src/sound.ts
@@ -1229,6 +1259,10 @@ function useSettled(value, ms) {
 }
 var lastPick = new Map;
 var lastViewKey = null;
+onWheelReset(() => {
+  lastPick.clear();
+  lastViewKey = null;
+});
 function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = true }) {
   const s = useSettings();
   const t = useT();
@@ -1561,11 +1595,10 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     consume(e);
   };
   const flip = s.rotatePad === "left";
-  return /* @__PURE__ */ window.SP_REACT.createElement(Focusable, {
-    autoFocus: true,
-    noFocusRing: true,
-    onGamepadDirection: onDir,
-    onButtonDown: (e) => {
+  const latest = useRef({});
+  latest.current = {
+    dir: onDir,
+    down: (e) => {
       const b = e.detail.button;
       debug("buttons", "down", b, { L1: GamepadButton.BUMPER_LEFT, R1: GamepadButton.BUMPER_RIGHT, views: views.map((v) => v.key) });
       if ((b === GamepadButton.BUMPER_LEFT || b === GamepadButton.BUMPER_RIGHT) && views.length > 1) {
@@ -1575,16 +1608,15 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       }
       onPadButton(e);
     },
-    onButtonUp: onPadButton,
-    onOKButton: () => {
+    up: onPadButton,
+    ok: () => {
       if (!current)
         return;
       if (s.soundEnabled)
         playUiSound("detail");
       openGamePage(current);
     },
-    onOKActionDescription: t.gamePage,
-    onOptionsButton: (e) => {
+    options: (e) => {
       consume(e);
       debug("roulette", "Y", { spinning: spinningRef.current, games: n });
       if (spinningRef.current)
@@ -1592,11 +1624,26 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       else
         spin();
     },
-    onOptionsActionDescription: t.roulette,
-    onMenuButton: (e) => {
+    menu: (e) => {
       if (current)
         openNativeGameMenu(current.appid, current.overview, e?.currentTarget ?? rootRef.current ?? undefined, rootRef.current?.ownerDocument?.defaultView);
-    },
+    }
+  };
+  const call = useMemo(() => {
+    const f = (name) => (e) => latest.current[name]?.(e);
+    return { dir: f("dir"), down: f("down"), up: f("up"), ok: f("ok"), options: f("options"), menu: f("menu") };
+  }, []);
+  return /* @__PURE__ */ window.SP_REACT.createElement(Focusable, {
+    autoFocus: true,
+    noFocusRing: true,
+    onGamepadDirection: call.dir,
+    onButtonDown: call.down,
+    onButtonUp: call.up,
+    onOKButton: call.ok,
+    onOKActionDescription: t.gamePage,
+    onOptionsButton: call.options,
+    onOptionsActionDescription: t.roulette,
+    onMenuButton: call.menu,
     onMenuActionDescription: t.options,
     onCancelButton: mode === "page" ? () => Navigation.NavigateBack() : undefined,
     onGamepadFocus: () => {
@@ -2198,6 +2245,7 @@ function saveBarLook(look) {
   updateSettings({ barLook: look });
 }
 function WheelHome({ original }) {
+  const wheelGen = useWheelGeneration();
   const [screen, setScreen] = useState("wheel");
   const screenRef = useRef("wheel");
   screenRef.current = screen;
@@ -2469,6 +2517,7 @@ function WheelHome({ original }) {
     "data-spindeck-wheel": "",
     style: { height: "50%", position: "relative", flexShrink: 0 }
   }, /* @__PURE__ */ window.SP_REACT.createElement(WheelPage, {
+    key: wheelGen,
     mode: "home",
     onWheelFocus: onWheelGotFocus,
     onRequestSections: toSections,
@@ -2762,7 +2811,11 @@ function QuickAccessPanel() {
   }, "☕ ", t.support)), REPO_URL && /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(ButtonItem, {
     layout: "below",
     onClick: () => openExternal(REPO_URL)
-  }, t.sourceAndUpdates)), /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", {
+  }, t.sourceAndUpdates)), /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(ButtonItem, {
+    layout: "below",
+    description: t.reloadDesc,
+    onClick: () => requestWheelReset()
+  }, "↻ ", t.reload)), /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { fontSize: 12, color: "#8b929a" }
   }, "Spindeck v", PLUGIN_VERSION)), s.odometerTurns >= 1 && /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { fontSize: 12, color: "#8b929a" }

@@ -7,12 +7,14 @@
 **New**
 - 🎛️ **Pick what each wheel shows.** The main wheel, L1 and R1 can each show Installed games, your whole library, ★ Favorites or any of your Steam collections, each with its own sort. Set them in the panel's Library section (main wheel: Installed games by default; L1 and R1 start off).
 - ⏱️ **New sort: Most played.** Sort any wheel by total playtime, next to Recently played and A–Z.
+- ↻ **Reload the wheel** button in the panel's About section, for when the screen gets stuck. Settings are kept.
 - ⏮️ **L1 / R1 on the wheel** jump to those views and back, with a quick strip at the top showing where you are.
 
 **Changed**
 - 🔤 **Alphabet popup** is now a small, see-through square, and only shows while browsing the whole library A–Z.
 
 **Fixed**
+- 🎯 **Ⓐ could keep opening the same game**, and L1/R1 could ignore a view you had just set, until the wheel was reopened. The wheel's buttons now always act on what's on screen.
 - 📍 **The wheel remembers your spot.** Coming back from a game page used to jump to the first game; now you're on the same game again, in every view.
 
 **Install:** Decky → Developer → Install Plugin from URL →

@@ -60,6 +60,8 @@ const ko = {
   support: "개발자 후원하기 (Ko-fi)",
   supportDesc: "Spindeck이 마음에 드셨다면 커피 한 잔으로 응원해 주세요",
   sourceAndUpdates: "GitHub: 소스 코드 · 업데이트",
+  reload: "휠 새로고침",
+  reloadDesc: "화면이 꼬였을 때 휠을 처음 상태로 다시 불러와요. 설정은 그대로예요.",
   langAuto: "자동 (스팀 언어)",
   playtime: (min: number) =>
     !min ? "아직 플레이 안 함" : min < 60 ? `플레이 시간 ${min}분` : `플레이 시간 ${fmtHours(min)}시간`,
@@ -122,6 +124,8 @@ const en: typeof ko = {
   support: "Support the developer (Ko-fi)",
   supportDesc: "If you enjoy Spindeck, a coffee keeps it going",
   sourceAndUpdates: "GitHub: source code · updates",
+  reload: "Reload the wheel",
+  reloadDesc: "If the screen gets stuck, reload the wheel from scratch. Settings are kept.",
   langAuto: "Auto (Steam language)",
   playtime: (min: number) =>
     !min ? "NOT PLAYED YET" : min < 60 ? `PLAYTIME ${min} MIN` : `PLAYTIME ${fmtHours(min)} HRS`,

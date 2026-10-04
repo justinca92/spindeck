@@ -1,6 +1,7 @@
 import { Focusable, GamepadButton } from "@decky/ui";
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { WheelPage } from "./WheelPage";
+import { useWheelGeneration } from "./reset";
 import { getSettings, updateSettings, useSettings, useSettingsLoaded } from "./settings";
 import { playUiSound } from "./sound";
 import { onTeardown, SafeBoundary } from "./safety";
@@ -289,6 +290,7 @@ function saveBarLook(look: BarLook) {
 type Screen = "wheel" | "sections";
 
 function WheelHome({ original }: { original: ReactNode }) {
+  const wheelGen = useWheelGeneration();
   const [screen, setScreen] = useState<Screen>("wheel");
   const screenRef = useRef<Screen>("wheel");
   screenRef.current = screen;
@@ -565,7 +567,7 @@ function WheelHome({ original }: { original: ReactNode }) {
       >
         <Focusable flow-children="column" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
           <div ref={wheelBox} data-spindeck-wheel="" style={{ height: "50%", position: "relative", flexShrink: 0 }}>
-            <WheelPage mode="home" onWheelFocus={onWheelGotFocus} onRequestSections={toSections} active={screen === "wheel"} />
+            <WheelPage key={wheelGen} mode="home" onWheelFocus={onWheelGotFocus} onRequestSections={toSections} active={screen === "wheel"} />
           </div>
           {/* position:relative: overlays Steam opens inside the home with
               position:absolute (e.g. What's New event details) are placed

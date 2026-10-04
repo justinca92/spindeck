@@ -13,6 +13,7 @@ import {
 import { definePlugin, routerHook } from "@decky/api";
 import { WheelPage } from "./WheelPage";
 import { listCollections } from "./games";
+import { requestWheelReset } from "./reset";
 import { composeHangul } from "./hangul";
 import { openHangulPad } from "./HangulPad";
 import { useLang, detected, LangSetting } from "./locale";
@@ -389,6 +390,11 @@ function QuickAccessPanel() {
             </ButtonItem>
           </PanelSectionRow>
         )}
+        <PanelSectionRow>
+          <ButtonItem layout="below" description={t.reloadDesc} onClick={() => requestWheelReset()}>
+            ↻ {t.reload}
+          </ButtonItem>
+        </PanelSectionRow>
         <PanelSectionRow>
           <div style={{ fontSize: 12, color: "#8b929a" }}>Spindeck v{PLUGIN_VERSION}</div>
         </PanelSectionRow>
