@@ -65,3 +65,5 @@ export const VIEW_STRIP_TOP_PX = 44;
 export const VIEW_ANIM_DEG = 70;
 export const VIEW_ANIM_OUT_MS = 170;
 export const VIEW_ANIM_IN_MS = 300;
+/** Both-pad rumble during the swap. */
+export const VIEW_ANIM_RUMBLE_MS = 700;

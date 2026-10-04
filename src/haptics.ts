@@ -60,3 +60,39 @@ export function wheelTick(pad: "left" | "right", keyboardMode = false, level = 5
     debug("haptic", "disabled after error", e);
   }
 }
+
+/**
+ * A short "brrrr" on both trackpads: Tick pulses every RUMBLE_STEP_MS for
+ * `ms`, fading out over the last third. Returns a function that stops it.
+ * Keyboard action set: location 2 = both pads; normal mode: left and right
+ * one after the other.
+ */
+const RUMBLE_STEP_MS = 28;
+export function rumbleBoth(ms: number, keyboardMode = false, level = 5): () => void {
+  if (broken) return () => {};
+  const s = findService();
+  if (!s) return () => {};
+  const start = Date.now();
+  const top = levelToDb(level);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const pulse = () => {
+    const t = Date.now() - start;
+    if (t >= ms || broken) return;
+    const fade = t > ms * 0.66 ? (t - ms * 0.66) / (ms * 0.34) : 0; // 0 → 1
+    const db = top - fade * 12;
+    try {
+      if (keyboardMode) s.PlaySteamDeckHaptic(2, TICK, 1, db);
+      else {
+        s.PlaySteamDeckHaptic(HAPTIC_LOCATION.left, TICK, 1, db);
+        s.PlaySteamDeckHaptic(HAPTIC_LOCATION.right, TICK, 1, db);
+      }
+    } catch (e) {
+      broken = true;
+      debug("haptic", "disabled after error", e);
+      return;
+    }
+    timer = setTimeout(pulse, RUMBLE_STEP_MS);
+  };
+  pulse();
+  return () => clearTimeout(timer);
+}

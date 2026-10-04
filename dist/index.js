@@ -796,6 +796,39 @@ function wheelTick(pad, keyboardMode = false, level = 5) {
     debug("haptic", "disabled after error", e);
   }
 }
+var RUMBLE_STEP_MS = 28;
+function rumbleBoth(ms, keyboardMode = false, level = 5) {
+  if (broken)
+    return () => {};
+  const s = findService();
+  if (!s)
+    return () => {};
+  const start = Date.now();
+  const top = levelToDb(level);
+  let timer;
+  const pulse = () => {
+    const t = Date.now() - start;
+    if (t >= ms || broken)
+      return;
+    const fade = t > ms * 0.66 ? (t - ms * 0.66) / (ms * 0.34) : 0;
+    const db = top - fade * 12;
+    try {
+      if (keyboardMode)
+        s.PlaySteamDeckHaptic(2, TICK, 1, db);
+      else {
+        s.PlaySteamDeckHaptic(HAPTIC_LOCATION.left, TICK, 1, db);
+        s.PlaySteamDeckHaptic(HAPTIC_LOCATION.right, TICK, 1, db);
+      }
+    } catch (e) {
+      broken = true;
+      debug("haptic", "disabled after error", e);
+      return;
+    }
+    timer = setTimeout(pulse, RUMBLE_STEP_MS);
+  };
+  pulse();
+  return () => clearTimeout(timer);
+}
 
 // src/steamDom.ts
 var cachedSearch;
@@ -1058,6 +1091,7 @@ var VIEW_STRIP_TOP_PX = 44;
 var VIEW_ANIM_DEG = 70;
 var VIEW_ANIM_OUT_MS = 170;
 var VIEW_ANIM_IN_MS = 300;
+var VIEW_ANIM_RUMBLE_MS = 700;
 
 // src/WheelPage.tsx
 var BASE_CAPSULE_W = 80;
@@ -1383,7 +1417,11 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   const [ringFx, setRingFx] = useState({ rot: 0, op: 1, ms: 0, ease: "linear" });
   const fxBusy = useRef(false);
   const fxTimers = useRef([]);
-  useEffect(() => () => fxTimers.current.forEach(clearTimeout), []);
+  const stopRumble = useRef(() => {});
+  useEffect(() => () => {
+    fxTimers.current.forEach(clearTimeout);
+    stopRumble.current();
+  }, []);
   const later = (ms, f) => fxTimers.current.push(setTimeout(f, ms));
   const switchView = (d) => {
     if (views.length < 2 || fxBusy.current)
@@ -1405,16 +1443,14 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     }
     const turn = (flip ? -1 : 1) * d * VIEW_ANIM_DEG;
     fxBusy.current = true;
+    if (live.current.haptic)
+      stopRumble.current = rumbleBoth(VIEW_ANIM_RUMBLE_MS, live.current.circleOn, live.current.hapticLevel);
     setRingFx({ rot: turn, op: 0, ms: VIEW_ANIM_OUT_MS, ease: "cubic-bezier(0.55, 0, 0.9, 0.45)" });
     later(VIEW_ANIM_OUT_MS, () => {
       setViewKey(target);
       setRingFx({ rot: -turn, op: 0, ms: 0, ease: "linear" });
       later(24, () => {
         setRingFx({ rot: 0, op: 1, ms: VIEW_ANIM_IN_MS, ease: "cubic-bezier(0.25, 1.45, 0.5, 1)" });
-        later(VIEW_ANIM_IN_MS * 0.7, () => {
-          if (live.current.haptic)
-            wheelTick(live.current.pad, live.current.circleOn, live.current.hapticLevel);
-        });
         later(VIEW_ANIM_IN_MS, () => {
           fxBusy.current = false;
         });

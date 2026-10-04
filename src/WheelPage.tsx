@@ -9,7 +9,7 @@ import { crossedMilestone } from "./odometer";
 import { onWheelReset } from "./reset";
 import { playUiSound } from "./sound";
 import { openNativeGameMenu } from "./nativeMenu";
-import { wheelTick } from "./haptics";
+import { rumbleBoth, wheelTick } from "./haptics";
 import { findHeaderSearch } from "./steamDom";
 import {
   ACHIEVEMENTS_DELAY_MS,
@@ -21,6 +21,7 @@ import {
   VIEW_ANIM_DEG,
   VIEW_ANIM_IN_MS,
   VIEW_ANIM_OUT_MS,
+  VIEW_ANIM_RUMBLE_MS,
   VIEW_STRIP_MS,
   VIEW_STRIP_TOP_PX,
   ODOMETER_SAVE_MS,
@@ -442,7 +443,14 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   const [ringFx, setRingFx] = useState({ rot: 0, op: 1, ms: 0, ease: "linear" });
   const fxBusy = useRef(false);
   const fxTimers = useRef<any[]>([]);
-  useEffect(() => () => fxTimers.current.forEach(clearTimeout), []);
+  const stopRumble = useRef<() => void>(() => {});
+  useEffect(
+    () => () => {
+      fxTimers.current.forEach(clearTimeout);
+      stopRumble.current();
+    },
+    [],
+  );
   const later = (ms: number, f: () => void) => fxTimers.current.push(setTimeout(f, ms));
   const switchView = (d: 1 | -1) => {
     if (views.length < 2 || fxBusy.current) return;
@@ -461,15 +469,14 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
     // Keep turning the same way whichever edge the wheel is on.
     const turn = (flip ? -1 : 1) * d * VIEW_ANIM_DEG;
     fxBusy.current = true;
+    // Brrrr on both pads while the cylinder turns.
+    if (live.current.haptic) stopRumble.current = rumbleBoth(VIEW_ANIM_RUMBLE_MS, live.current.circleOn, live.current.hapticLevel);
     setRingFx({ rot: turn, op: 0, ms: VIEW_ANIM_OUT_MS, ease: "cubic-bezier(0.55, 0, 0.9, 0.45)" });
     later(VIEW_ANIM_OUT_MS, () => {
       setViewKey(target);
       setRingFx({ rot: -turn, op: 0, ms: 0, ease: "linear" }); // jump to the far side, invisible
       later(24, () => {
         setRingFx({ rot: 0, op: 1, ms: VIEW_ANIM_IN_MS, ease: "cubic-bezier(0.25, 1.45, 0.5, 1)" }); // overshoot = the lock
-        later(VIEW_ANIM_IN_MS * 0.7, () => {
-          if (live.current.haptic) wheelTick(live.current.pad, live.current.circleOn, live.current.hapticLevel);
-        });
         later(VIEW_ANIM_IN_MS, () => {
           fxBusy.current = false;
         });
