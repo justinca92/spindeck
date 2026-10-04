@@ -14,6 +14,7 @@
 // Runtime-only: nothing is saved. Cleanup turns the action set off explicitly.
 
 import { onTeardown } from "./safety";
+import { debug } from "./log";
 
 export interface PadWheelOptions {
   stepDegrees: number;
@@ -75,7 +76,15 @@ export function subscribeKeyboardAnalogWheel(opts: PadWheelOptions): () => void 
 
   let reg: any;
   try {
-    reg = Input.RegisterForControllerAnalogInputMessages((_idx: number, type: number, _p: boolean, x: number, y: number) => {
+    const seen = new Set<string>();
+    reg = Input.RegisterForControllerAnalogInputMessages((idx: number, type: number, _p: boolean, x: number, y: number) => {
+      // Diagnostics: log each (controller, input type) once, e.g. to find the
+      // left stick or a second controller's pads.
+      const k = `${idx}:${type}`;
+      if (!seen.has(k)) {
+        seen.add(k);
+        debug("analog", "new input", { controller: idx, type, x: +x.toFixed(2), y: +y.toFixed(2) });
+      }
       if (type !== wanted) return;
       const now = Date.now();
       if (now - lastTime > ANALOG_GESTURE_GAP_MS) {

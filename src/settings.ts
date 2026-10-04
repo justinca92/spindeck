@@ -21,6 +21,7 @@ export interface WheelSettings {
   r1View: string;
   r1Sort: SortMode;
   viewAnim: boolean;          // L1/R1 swap animation (revolver)
+  dockedNoHaptics: boolean;   // no Deck haptics while docked (external display)
   capsuleScale: number;       // capsule art size multiplier (1 = 80×120)
   textScale: number;          // game title size multiplier
   wheelSizePct: number;       // wheel radius as % of screen width
@@ -51,6 +52,7 @@ export const DEFAULTS: WheelSettings = {
   r1View: "",
   r1Sort: "recent",
   viewAnim: true,
+  dockedNoHaptics: true,
   capsuleScale: 1.2,
   textScale: 0.7,
   wheelSizePct: 32,

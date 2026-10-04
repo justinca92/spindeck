@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0 — unreleased
+
+### Added
+- **No Deck haptics while docked** (panel → Controls, on by default). Docked = the wheel isn't rendering at the Deck's own 16:10 1280×800 (i.e. an external display).
+- Diagnostics in the console (debug level): each new analog input (controller index + type) and the connected controller list, to work out left-stick input and Steam Controller 2 support.
+
+### Changed
+- **Smoother wheel.** Capsule darkening is a black overlay's opacity instead of `filter: brightness()` (which repainted every capsule image every frame), each capsule is its own compositor layer (`will-change: transform`), and the blurred backdrop is drawn at a quarter size and scaled up (~16× less blurring work).
+
 ## 1.2.0 — 2026-10-03
 
 ### Added

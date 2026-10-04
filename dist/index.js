@@ -43,6 +43,7 @@ var DEFAULTS = {
   r1View: "",
   r1Sort: "recent",
   viewAnim: true,
+  dockedNoHaptics: true,
   capsuleScale: 1.2,
   textScale: 0.7,
   wheelSizePct: 32,
@@ -226,6 +227,8 @@ var ko = {
   alpha: "알파벳순 (A–Z)",
   byPlaytime: "플레이 시간순",
   slotNone: "없음",
+  dockedNoHaptics: "도킹 중에는 덱 진동 끄기",
+  dockedNoHapticsDesc: "TV나 모니터에 연결해 쓸 때(화면이 16:10이 아닐 때) 스팀덱 본체 진동을 꺼요.",
   viewAnim: "L1/R1 전환 애니메이션",
   viewAnimDesc: "휠이 리볼버 실린더처럼 돌아 나가고 새 휠이 철컥 맞물리며, 양쪽 트랙패드가 부르르 떨려요. 끄면 애니메이션과 이 진동이 함께 꺼져요.",
   shelfCount: (n) => `게임 ${n}개`,
@@ -290,6 +293,8 @@ var en = {
   alpha: "Alphabetical (A–Z)",
   byPlaytime: "Most played",
   slotNone: "None",
+  dockedNoHaptics: "No Deck haptics while docked",
+  dockedNoHapticsDesc: "When playing on a TV or monitor (screen isn't 16:10), the Steam Deck itself doesn't vibrate.",
   viewAnim: "L1/R1 switch animation",
   viewAnimDesc: "The wheel turns out like a revolver cylinder and the next one clicks into place, with a rumble on both trackpads. Turning this off also turns off that rumble.",
   shelfCount: (n) => `${n} games`,
@@ -515,7 +520,13 @@ function subscribeKeyboardAnalogWheel(opts) {
   let lastTime = 0;
   let reg;
   try {
-    reg = Input.RegisterForControllerAnalogInputMessages((_idx, type, _p, x, y) => {
+    const seen = new Set;
+    reg = Input.RegisterForControllerAnalogInputMessages((idx, type, _p, x, y) => {
+      const k = `${idx}:${type}`;
+      if (!seen.has(k)) {
+        seen.add(k);
+        debug("analog", "new input", { controller: idx, type, x: +x.toFixed(2), y: +y.toFixed(2) });
+      }
       if (type !== wanted)
         return;
       const now = Date.now();
@@ -1220,8 +1231,11 @@ var WheelRing = memo(function WheelRing(p) {
         alignItems: "center",
         gap: selected ? 16 : 28,
         zIndex: 100 - Math.round(dist * 10),
-        pointerEvents: "none"
+        pointerEvents: "none",
+        willChange: "transform"
       }
+    }, /* @__PURE__ */ window.SP_REACT.createElement("div", {
+      style: { position: "relative", width: capW, height: capH, flexShrink: 0 }
     }, /* @__PURE__ */ window.SP_REACT.createElement(FallbackImg, {
       srcs: g.capsule,
       style: {
@@ -1229,10 +1243,19 @@ var WheelRing = memo(function WheelRing(p) {
         height: capH,
         objectFit: "cover",
         borderRadius: 8,
-        boxShadow: selected ? `0 0 0 3px ${p.accentColor}, 0 8px 24px #000a` : "0 6px 16px #000c",
-        filter: selected ? undefined : `brightness(${shade})`
+        display: "block",
+        boxShadow: selected ? `0 0 0 3px ${p.accentColor}, 0 8px 24px #000a` : "0 6px 16px #000c"
       }
     }), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+      style: {
+        position: "absolute",
+        inset: 0,
+        borderRadius: 8,
+        background: "#000",
+        opacity: selected ? 0 : 1 - shade,
+        willChange: "opacity"
+      }
+    })), /* @__PURE__ */ window.SP_REACT.createElement("div", {
       style: {
         maxWidth: Math.max(200, 300 * p.textScale),
         fontSize: (selected ? BASE_TITLE_PX : BASE_TITLE_PX_SIDE) * p.textScale,
@@ -1264,12 +1287,13 @@ var Hero = memo(function Hero({ game, flip, heroScale }) {
     srcs,
     style: {
       position: "absolute",
-      inset: 0,
-      width: "100%",
-      height: "100%",
+      left: "37.5%",
+      top: "37.5%",
+      width: "25%",
+      height: "25%",
       objectFit: "cover",
-      filter: "blur(28px) brightness(0.42) saturate(1.2)",
-      transform: "scale(1.12)"
+      filter: "blur(7px) brightness(0.42) saturate(1.2)",
+      transform: "scale(4.48)"
     }
   }), /* @__PURE__ */ window.SP_REACT.createElement(FallbackImg, {
     key: `fg-${game.appid}`,
@@ -1354,6 +1378,8 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   live.current.hapticLevel = s.hapticLevel;
   live.current.sound = s.soundEnabled;
   live.current.haptic = s.hapticEnabled;
+  const dockMute = useRef(false);
+  const hapticOk = () => live.current.haptic && !dockMute.current;
   live.current.pad = s.rotatePad;
   const hapticMuteUntil = useRef(0);
   const spinningRef = useRef(false);
@@ -1362,7 +1388,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     motion.step(dir);
     if (live.current.sound)
       playUiSound("step");
-    if (haptic && live.current.haptic && Date.now() > hapticMuteUntil.current)
+    if (haptic && hapticOk() && Date.now() > hapticMuteUntil.current)
       wheelTick(live.current.pad, live.current.circleOn, live.current.hapticLevel);
   };
   const move = (dir, source) => {
@@ -1371,7 +1397,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     advance(dir, source === "pad");
   };
   const detentTick = () => {
-    if (!n || spinningRef.current || !live.current.haptic || Date.now() <= hapticMuteUntil.current)
+    if (!n || spinningRef.current || !hapticOk() || Date.now() <= hapticMuteUntil.current)
       return;
     wheelTick(live.current.pad, live.current.circleOn, live.current.hapticLevel);
   };
@@ -1443,7 +1469,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     }
     const turn = (flip ? -1 : 1) * d * VIEW_ANIM_DEG;
     fxBusy.current = true;
-    if (live.current.haptic)
+    if (hapticOk())
       stopRumble.current = rumbleBoth(VIEW_ANIM_RUMBLE_MS, live.current.circleOn, live.current.hapticLevel);
     setRingFx({ rot: turn, op: 0, ms: VIEW_ANIM_OUT_MS, ease: "cubic-bezier(0.55, 0, 0.9, 0.45)" });
     later(VIEW_ANIM_OUT_MS, () => {
@@ -1501,6 +1527,20 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     tick();
   };
   const [size, setSize] = useState({ w: 1280, h: 800 });
+  const docked = Math.abs(size.w / Math.max(1, size.h) - 1.6) > 0.04 || size.w > 1400;
+  dockMute.current = docked && s.dockedNoHaptics;
+  useEffect(() => debug("dock", { w: size.w, h: size.h, docked }), [docked]);
+  useEffect(() => {
+    let reg;
+    try {
+      reg = globalThis.SteamClient?.Input?.RegisterForControllerListChanges?.((list) => debug("controllers", list));
+    } catch {}
+    return () => {
+      try {
+        reg?.unregister?.();
+      } catch {}
+    };
+  }, []);
   useEffect(() => {
     const el = rootRef.current;
     if (!el)
@@ -2615,7 +2655,7 @@ function WheelHome({ original }) {
 // src/links.ts
 var KOFI_URL = "https://ko-fi.com/jhw0806";
 var REPO_URL = "https://github.com/justinca92/spindeck";
-var PLUGIN_VERSION = "1.2.0";
+var PLUGIN_VERSION = "1.3.0";
 
 // src/index.tsx
 var ROUTE = "/spindeck";
@@ -2863,6 +2903,11 @@ function QuickAccessPanel() {
       updateSettings({ hapticLevel: v });
       wheelTick(s.rotatePad, false, v);
     }
+  })), s.hapticEnabled && /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(ToggleField, {
+    label: t.dockedNoHaptics,
+    description: t.dockedNoHapticsDesc,
+    checked: s.dockedNoHaptics,
+    onChange: (v) => updateSettings({ dockedNoHaptics: v })
   })), /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(ToggleField, {
     label: t.sound,
     description: t.soundDesc,

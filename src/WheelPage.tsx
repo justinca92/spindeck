@@ -197,19 +197,36 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
           gap: selected ? 16 : 28,
           zIndex: 100 - Math.round(dist * 10),
           pointerEvents: "none",
+          // Own compositor layer: per-frame moves are then just a transform.
+          willChange: "transform",
         }}
       >
-        <FallbackImg
-          srcs={g.capsule}
-          style={{
-            width: capW,
-            height: capH,
-            objectFit: "cover",
-            borderRadius: 8,
-            boxShadow: selected ? `0 0 0 3px ${p.accentColor}, 0 8px 24px #000a` : "0 6px 16px #000c",
-            filter: selected ? undefined : `brightness(${shade})`,
-          }}
-        />
+        <div style={{ position: "relative", width: capW, height: capH, flexShrink: 0 }}>
+          <FallbackImg
+            srcs={g.capsule}
+            style={{
+              width: capW,
+              height: capH,
+              objectFit: "cover",
+              borderRadius: 8,
+              display: "block",
+              boxShadow: selected ? `0 0 0 3px ${p.accentColor}, 0 8px 24px #000a` : "0 6px 16px #000c",
+            }}
+          />
+          {/* Distance darkening as a black overlay's opacity, not filter:
+              brightness() — a filter repaints the image every frame, opacity
+              is a cheap compositor change. */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              borderRadius: 8,
+              background: "#000",
+              opacity: selected ? 0 : 1 - shade,
+              willChange: "opacity",
+            }}
+          />
+        </div>
         {/* Always rendered (opacity only) — mounting/unmounting names at the
             edge while spinning cost extra layout. */}
           <div
@@ -249,13 +266,16 @@ const Hero = memo(function Hero({ game, flip, heroScale }: { game: GameEntry | u
         className="dw-hero"
         srcs={srcs}
         style={{
+          // Blurred backdrop drawn at a quarter size and scaled up: blurring
+          // 320×200 pixels is ~16× cheaper than the full screen, and looks the same.
           position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
+          left: "37.5%",
+          top: "37.5%",
+          width: "25%",
+          height: "25%",
           objectFit: "cover",
-          filter: "blur(28px) brightness(0.42) saturate(1.2)",
-          transform: "scale(1.12)",
+          filter: "blur(7px) brightness(0.42) saturate(1.2)",
+          transform: "scale(4.48)",
         }}
       />
       <FallbackImg
@@ -373,6 +393,9 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   live.current.hapticLevel = s.hapticLevel;
   live.current.sound = s.soundEnabled;
   live.current.haptic = s.hapticEnabled;
+  // Deck haptics off while docked (external display), if the panel says so.
+  const dockMute = useRef(false);
+  const hapticOk = () => live.current.haptic && !dockMute.current;
   live.current.pad = s.rotatePad;
   const hapticMuteUntil = useRef(0);
   const spinningRef = useRef(false);
@@ -381,7 +404,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
     setSel((v) => (v + dir + n) % n);
     motion.step(dir);
     if (live.current.sound) playUiSound("step");
-    if (haptic && live.current.haptic && Date.now() > hapticMuteUntil.current) wheelTick(live.current.pad, live.current.circleOn, live.current.hapticLevel);
+    if (haptic && hapticOk() && Date.now() > hapticMuteUntil.current) wheelTick(live.current.pad, live.current.circleOn, live.current.hapticLevel);
   };
   // "pad" = trackpad circle (haptic tick on that pad); "dpad" = no haptic;
   // "analog" = circle input with separate haptic detents (ticks come from onDetent).
@@ -390,7 +413,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
     advance(dir, source === "pad");
   };
   const detentTick = () => {
-    if (!n || spinningRef.current || !live.current.haptic || Date.now() <= hapticMuteUntil.current) return;
+    if (!n || spinningRef.current || !hapticOk() || Date.now() <= hapticMuteUntil.current) return;
     wheelTick(live.current.pad, live.current.circleOn, live.current.hapticLevel);
   };
 
@@ -470,7 +493,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
     const turn = (flip ? -1 : 1) * d * VIEW_ANIM_DEG;
     fxBusy.current = true;
     // Brrrr on both pads while the cylinder turns.
-    if (live.current.haptic) stopRumble.current = rumbleBoth(VIEW_ANIM_RUMBLE_MS, live.current.circleOn, live.current.hapticLevel);
+    if (hapticOk()) stopRumble.current = rumbleBoth(VIEW_ANIM_RUMBLE_MS, live.current.circleOn, live.current.hapticLevel);
     setRingFx({ rot: turn, op: 0, ms: VIEW_ANIM_OUT_MS, ease: "cubic-bezier(0.55, 0, 0.9, 0.45)" });
     later(VIEW_ANIM_OUT_MS, () => {
       setViewKey(target);
@@ -538,6 +561,28 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   // Plugin code runs in Steam's hidden SharedJSContext window, so `window`
   // sizes are NOT the screen. Measure the element we actually render into.
   const [size, setSize] = useState({ w: 1280, h: 800 });
+  // The Deck's own screen is 1280×800 (16:10) in game mode; anything else means
+  // an external display, i.e. docked.
+  const docked = Math.abs(size.w / Math.max(1, size.h) - 1.6) > 0.04 || size.w > 1400;
+  dockMute.current = docked && s.dockedNoHaptics;
+  useEffect(() => debug("dock", { w: size.w, h: size.h, docked }), [docked]);
+  // Diagnostics for controller support (e.g. Steam Controller 2): log the
+  // connected controllers whenever the list changes. Read-only.
+  useEffect(() => {
+    let reg: any;
+    try {
+      reg = (globalThis as any).SteamClient?.Input?.RegisterForControllerListChanges?.((list: any) => debug("controllers", list));
+    } catch {
+      /* not available */
+    }
+    return () => {
+      try {
+        reg?.unregister?.();
+      } catch {
+        /* ignore */
+      }
+    };
+  }, []);
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
