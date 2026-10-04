@@ -1706,25 +1706,25 @@ function LetterPopup({ letter, count, show, accent, label }) {
       left: "50%",
       top: "50%",
       transform: "translate(-50%, -50%)",
-      width: 200,
-      height: 200,
-      borderRadius: 28,
+      width: 150,
+      height: 150,
+      borderRadius: 24,
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
       gap: 2,
-      background: "rgba(11, 15, 22, 0.88)",
-      boxShadow: "0 0 36px 18px rgba(11, 15, 22, 0.7)",
+      background: "rgba(11, 15, 22, 0.55)",
+      boxShadow: "0 0 24px 10px rgba(11, 15, 22, 0.4)",
       opacity: show ? 1 : 0,
       transition: show ? "opacity 80ms ease-out" : "opacity 300ms ease-in",
       pointerEvents: "none",
       zIndex: 300
     }
   }, /* @__PURE__ */ window.SP_REACT.createElement("span", {
-    style: { fontSize: 120, fontWeight: 800, lineHeight: 1, color: accent }
+    style: { fontSize: 92, fontWeight: 800, lineHeight: 1, color: accent, textShadow: "0 2px 12px rgba(0,0,0,0.6)" }
   }, letter), /* @__PURE__ */ window.SP_REACT.createElement("span", {
-    style: { fontSize: 13, color: "#c8d1dc" }
+    style: { fontSize: 12, color: "#dfe5ec", textShadow: "0 1px 4px rgba(0,0,0,0.8)" }
   }, label.replace("{n}", String(count))));
 }
 function ViewStrip({ views, current, show, accent }) {

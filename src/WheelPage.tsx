@@ -839,9 +839,9 @@ function LetterPopup({ letter, count, show, accent, label }: { letter: string; c
         left: "50%",
         top: "50%",
         transform: "translate(-50%, -50%)",
-        width: 200,
-        height: 200,
-        borderRadius: 28,
+        width: 150,
+        height: 150,
+        borderRadius: 24,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -850,16 +850,16 @@ function LetterPopup({ letter, count, show, accent, label }: { letter: string; c
         // A rounded square with no border: its edge is feathered by a same-colour
         // shadow so it fades into the art. (No backdrop-filter — Steam's
         // compositor didn't draw it.)
-        background: "rgba(11, 15, 22, 0.88)",
-        boxShadow: "0 0 36px 18px rgba(11, 15, 22, 0.7)",
+        background: "rgba(11, 15, 22, 0.55)",
+        boxShadow: "0 0 24px 10px rgba(11, 15, 22, 0.4)",
         opacity: show ? 1 : 0,
         transition: show ? "opacity 80ms ease-out" : "opacity 300ms ease-in",
         pointerEvents: "none",
         zIndex: 300,
       }}
     >
-      <span style={{ fontSize: 120, fontWeight: 800, lineHeight: 1, color: accent }}>{letter}</span>
-      <span style={{ fontSize: 13, color: "#c8d1dc" }}>{label.replace("{n}", String(count))}</span>
+      <span style={{ fontSize: 92, fontWeight: 800, lineHeight: 1, color: accent, textShadow: "0 2px 12px rgba(0,0,0,0.6)" }}>{letter}</span>
+      <span style={{ fontSize: 12, color: "#dfe5ec", textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>{label.replace("{n}", String(count))}</span>
     </div>
   );
 }
