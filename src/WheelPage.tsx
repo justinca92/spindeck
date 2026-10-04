@@ -17,7 +17,6 @@ import {
   HAPTIC_MUTE_AFTER_B_MS,
   HERO_SETTLE_MS,
   LETTER_FAST_STEPS,
-  LETTER_POPUP_MIN_GAMES,
   VIEW_STRIP_MS,
   VIEW_STRIP_TOP_PX,
   ODOMETER_SAVE_MS,
@@ -297,7 +296,8 @@ let lastViewKey: string | null = null;
 interface WheelView {
   key: string;
   name: string;
-  collection: string | null; // null = the base view (installed / whole library)
+  collection: string | null; // null = a library view (installed / whole library)
+  installedOnly: boolean;    // library views only
 }
 
 interface WheelPageProps {
@@ -310,20 +310,28 @@ interface WheelPageProps {
 export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = true }: WheelPageProps) {
   const s = useSettings();
   const t = useT();
-  // Views L1/R1 cycles through: the base view, then the collections picked in the panel.
-  const shelfKey = s.shelfCollections.join("|");
+  // Three slots in a row: [L1 ★ Favorites] — base view — [R1 the user's pick].
+  // L1/R1 move one step left/right (no wrap-around).
   const views = useMemo<WheelView[]>(() => {
-    const base: WheelView = { key: `base:${s.libraryScope}`, name: s.libraryScope === "installed" ? t.installed : t.all, collection: null };
-    const picked = listCollections().filter((c) => s.shelfCollections.includes(c.id));
-    return [base, ...picked.map((c) => ({ key: `coll:${c.id}`, name: c.name, collection: c.id }))];
-  }, [s.libraryScope, shelfKey, t]);
-  const [viewKey, setViewKey] = useState<string>(() => lastViewKey ?? views[0].key);
-  const view = views.find((v) => v.key === viewKey) ?? views[0];
+    const lib = (scope: string): WheelView => ({ key: `base:${scope}`, name: scope === "installed" ? t.installed : t.all, collection: null, installedOnly: scope === "installed" });
+    const base = lib(s.libraryScope);
+    const colls = listCollections();
+    const coll = (id: string): WheelView | null => {
+      const c = colls.find((x) => x.id === id);
+      return c ? { key: `coll:${c.id}`, name: c.name, collection: c.id, installedOnly: false } : null;
+    };
+    const left = s.favoritesOnL1 ? coll("favorite") : null;
+    const right = !s.r1View ? null : s.r1View.startsWith("base:") ? lib(s.r1View.slice(5)) : coll(s.r1View);
+    return [left, base, right && right.key !== base.key ? right : null].filter((v): v is WheelView => !!v);
+  }, [s.libraryScope, s.favoritesOnL1, s.r1View, t]);
+  const baseKey = `base:${s.libraryScope}`;
+  const [viewKey, setViewKey] = useState<string>(() => lastViewKey ?? baseKey);
+  const view = views.find((v) => v.key === viewKey) ?? views.find((v) => v.key === baseKey) ?? views[0];
   useEffect(() => {
     lastViewKey = view.key;
   }, [view.key]);
   const games = useMemo<GameEntry[]>(
-    () => (view.collection ? loadCollectionGames(view.collection, s.sortMode) : loadGames(s.libraryScope === "installed", s.sortMode)),
+    () => (view.collection ? loadCollectionGames(view.collection, s.sortMode) : loadGames(view.installedOnly, s.sortMode)),
     [view.key, s.sortMode],
   );
   const n = games.length;
@@ -420,8 +428,9 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   const switchView = (d: 1 | -1) => {
     if (views.length < 2) return;
     if (spinningRef.current) stopSpin(false);
-    const i = Math.max(0, views.findIndex((v) => v.key === view.key));
-    setViewKey(views[(i + d + views.length) % views.length].key);
+    const j = views.findIndex((v) => v.key === view.key) + d;
+    if (j < 0 || j >= views.length) return; // end of the row: stay
+    setViewKey(views[j].key);
     if (live.current.sound) playUiSound("screen");
     setStrip(true);
     clearTimeout(stripTimer.current);
@@ -572,9 +581,9 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   const current = games[sel];
   const heroSel = useSettled(sel, HERO_SETTLE_MS);
 
-  // Alphabet popup: A–Z sort of a big list only (the whole library, or a big
-  // collection). Installed games are a short list you can see at a glance.
-  const alpha = s.sortMode === "alpha" && (view.collection ? n >= LETTER_POPUP_MIN_GAMES : s.libraryScope === "all");
+  // Alphabet popup: A–Z sort of the whole library only. Installed games and
+  // collections are short lists you can see at a glance.
+  const alpha = s.sortMode === "alpha" && !view.collection && !view.installedOnly;
   const letters = useMemo(() => games.map((g) => indexLetter(g.name)), [games]);
   const letterCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -827,16 +836,19 @@ function LetterPopup({ letter, count, show, accent, label }: { letter: string; c
         left: "50%",
         top: "50%",
         transform: "translate(-50%, -50%)",
-        width: 300,
-        height: 300,
+        width: 200,
+        height: 200,
+        borderRadius: 28,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         gap: 2,
-        // No border, and no hard edge: a dark glow that fades out to nothing.
-        // (No backdrop-filter either — Steam's compositor didn't draw it.)
-        background: "radial-gradient(closest-side, rgba(11,15,22,0.92) 0%, rgba(11,15,22,0.85) 45%, rgba(11,15,22,0.45) 75%, rgba(11,15,22,0) 100%)",
+        // A rounded square with no border: its edge is feathered by a same-colour
+        // shadow so it fades into the art. (No backdrop-filter — Steam's
+        // compositor didn't draw it.)
+        background: "rgba(11, 15, 22, 0.88)",
+        boxShadow: "0 0 36px 18px rgba(11, 15, 22, 0.7)",
         opacity: show ? 1 : 0,
         transition: show ? "opacity 80ms ease-out" : "opacity 300ms ease-in",
         pointerEvents: "none",
@@ -855,7 +867,7 @@ function LetterPopup({ letter, count, show, accent, label }: { letter: string; c
  */
 function ViewStrip({ views, current, show, accent }: { views: WheelView[]; current: string; show: boolean; accent: string }) {
   const i = Math.max(0, views.findIndex((v) => v.key === current));
-  const at = (d: number) => views[(i + d + views.length) % views.length];
+  const at = (d: number) => views[i + d];
   const label = (v: WheelView) => (v.collection === "favorite" ? "★ " : "") + v.name;
   const side: CSSProperties = { color: "#8b929a", fontSize: 15, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
   const key: CSSProperties = { fontSize: 12, fontWeight: 800, color: "#c8d1dc", background: "rgba(255,255,255,0.14)", borderRadius: 6, padding: "2px 7px" };
@@ -880,11 +892,11 @@ function ViewStrip({ views, current, show, accent }: { views: WheelView[]; curre
         whiteSpace: "nowrap",
       }}
     >
-      <span style={key}>L1</span>
-      {views.length > 2 && <span style={side}>{label(at(-1))}</span>}
+      <span style={{ ...key, opacity: at(-1) ? 1 : 0.3 }}>L1</span>
+      {at(-1) && <span style={side}>{label(at(-1))}</span>}
       <span style={{ color: accent, fontSize: 18, fontWeight: 800 }}>{label(at(0))}</span>
-      <span style={side}>{label(at(1))}</span>
-      <span style={key}>R1</span>
+      {at(1) && <span style={side}>{label(at(1))}</span>}
+      <span style={{ ...key, opacity: at(1) ? 1 : 0.3 }}>R1</span>
     </div>
   );
 }

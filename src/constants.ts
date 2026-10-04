@@ -58,8 +58,6 @@ export const TOAST_MS = 3500;
 /** Toast position: below Steam's top bar, on the art side (opposite the wheel). */
 export const TOAST_TOP_PX = 84;
 
-/** Alphabet popup in an L1/R1 collection: only when it has at least this many games. */
-export const LETTER_POPUP_MIN_GAMES = 100;
 /** L1/R1 view strip: how long it stays after switching, and its distance from the top. */
 export const VIEW_STRIP_MS = 1800;
 export const VIEW_STRIP_TOP_PX = 44;

@@ -3,7 +3,8 @@
 ## 1.3.0 — 2026-10-03
 
 ### Added
-- **L1 / R1 collections.** In the panel's Library section, switch on any Steam collections (★ Favorites first, then your own, in Steam's order; Hidden is never offered). On the wheel, L1/R1 flips between the base view (Installed / Whole library) and those collections. A strip at the top shows previous · current · next for a moment. Collections show all their games, installed or not. Roulette spins within the current view; the alphabet popup shows in A–Z collections of 100+ games.
+- **L1 / R1 collections.** Three views in a row: L1 → ★ Favorites (on by default, can be switched off in the panel), the base view (Installed games by default) in the middle, and R1 → one view the user picks in the panel (any Steam collection, or the other library view). L1/R1 step one view left/right; a strip at the top shows where you are for a moment. Collections show all their games, installed or not; the roulette spins within the current view.
+- **Alphabet popup:** whole library only (A–Z), and a borderless rounded square whose edge fades into the art.
 
 ### Fixed
 - **Coming back from a game page started at the first game again.** Each view now remembers the last game you were on (by game, so a re-sorted list still lands on it) for as long as the plugin is running.

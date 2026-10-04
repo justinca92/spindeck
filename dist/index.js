@@ -38,7 +38,8 @@ var DEFAULTS = {
   accentColor: "#66c0f4",
   libraryScope: "installed",
   sortMode: "recent",
-  shelfCollections: [],
+  favoritesOnL1: true,
+  r1View: "",
   capsuleScale: 1.2,
   textScale: 0.7,
   wheelSizePct: 32,
@@ -98,6 +99,7 @@ async function initSettings() {
       merged.settingsVersion = 6;
       needsSave = true;
     }
+    delete merged.shelfCollections;
     delete merged.hapticMode;
     delete merged.hideRecentShelf;
     current = merged;
@@ -215,9 +217,10 @@ var ko = {
   sort: "정렬",
   recent: "최근 플레이",
   alpha: "알파벳순 (A–Z)",
-  shelf: "L1/R1 모음집",
-  shelfDesc: "휠 화면에서 L1/R1로 넘겨 볼 스팀 모음집을 고르세요. 기본 화면은 위의 '보기'예요.",
-  shelfNone: "스팀 라이브러리에 모음집이 없어요. 스팀 라이브러리에서 모음집을 만들거나 즐겨찾기를 추가해 보세요.",
+  l1Favorites: "L1: ★ 즐겨찾기",
+  r1Pick: "R1: 내 모음집",
+  r1Desc: "휠 화면에서 R1로 볼 모음집을 하나 고르세요.",
+  r1None: "없음",
   shelfCount: (n) => `게임 ${n}개`,
   display: "표시",
   heroSize: "히어로 이미지 크기",
@@ -276,9 +279,10 @@ var en = {
   sort: "Sort",
   recent: "Recently played",
   alpha: "Alphabetical (A–Z)",
-  shelf: "L1/R1 collections",
-  shelfDesc: 'Pick the Steam collections L1/R1 flips through on the wheel. The base view is "Show" above.',
-  shelfNone: "No collections in your Steam library yet. Make one in the Steam library, or favourite a game.",
+  l1Favorites: "L1: ★ Favorites",
+  r1Pick: "R1: my collection",
+  r1Desc: "Pick one collection to open with R1 on the wheel.",
+  r1None: "None",
   shelfCount: (n) => `${n} games`,
   display: "Display",
   heroSize: "Hero art size",
@@ -1011,7 +1015,6 @@ var LETTER_FAST_WINDOW_MS = 600;
 var ODOMETER_SAVE_MS = 3000;
 var TOAST_MS = 3500;
 var TOAST_TOP_PX = 84;
-var LETTER_POPUP_MIN_GAMES = 100;
 var VIEW_STRIP_MS = 1800;
 var VIEW_STRIP_TOP_PX = 44;
 
@@ -1226,18 +1229,25 @@ var lastViewKey = null;
 function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = true }) {
   const s = useSettings();
   const t = useT();
-  const shelfKey = s.shelfCollections.join("|");
   const views = useMemo(() => {
-    const base = { key: `base:${s.libraryScope}`, name: s.libraryScope === "installed" ? t.installed : t.all, collection: null };
-    const picked = listCollections().filter((c) => s.shelfCollections.includes(c.id));
-    return [base, ...picked.map((c) => ({ key: `coll:${c.id}`, name: c.name, collection: c.id }))];
-  }, [s.libraryScope, shelfKey, t]);
-  const [viewKey, setViewKey] = useState(() => lastViewKey ?? views[0].key);
-  const view = views.find((v) => v.key === viewKey) ?? views[0];
+    const lib = (scope) => ({ key: `base:${scope}`, name: scope === "installed" ? t.installed : t.all, collection: null, installedOnly: scope === "installed" });
+    const base = lib(s.libraryScope);
+    const colls = listCollections();
+    const coll = (id) => {
+      const c = colls.find((x) => x.id === id);
+      return c ? { key: `coll:${c.id}`, name: c.name, collection: c.id, installedOnly: false } : null;
+    };
+    const left = s.favoritesOnL1 ? coll("favorite") : null;
+    const right = !s.r1View ? null : s.r1View.startsWith("base:") ? lib(s.r1View.slice(5)) : coll(s.r1View);
+    return [left, base, right && right.key !== base.key ? right : null].filter((v) => !!v);
+  }, [s.libraryScope, s.favoritesOnL1, s.r1View, t]);
+  const baseKey = `base:${s.libraryScope}`;
+  const [viewKey, setViewKey] = useState(() => lastViewKey ?? baseKey);
+  const view = views.find((v) => v.key === viewKey) ?? views.find((v) => v.key === baseKey) ?? views[0];
   useEffect(() => {
     lastViewKey = view.key;
   }, [view.key]);
-  const games = useMemo(() => view.collection ? loadCollectionGames(view.collection, s.sortMode) : loadGames(s.libraryScope === "installed", s.sortMode), [view.key, s.sortMode]);
+  const games = useMemo(() => view.collection ? loadCollectionGames(view.collection, s.sortMode) : loadGames(view.installedOnly, s.sortMode), [view.key, s.sortMode]);
   const n = games.length;
   const restoreSel = (list) => {
     const id = lastPick.get(view.key);
@@ -1327,8 +1337,10 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       return;
     if (spinningRef.current)
       stopSpin(false);
-    const i = Math.max(0, views.findIndex((v) => v.key === view.key));
-    setViewKey(views[(i + d + views.length) % views.length].key);
+    const j = views.findIndex((v) => v.key === view.key) + d;
+    if (j < 0 || j >= views.length)
+      return;
+    setViewKey(views[j].key);
     if (live.current.sound)
       playUiSound("screen");
     setStrip(true);
@@ -1458,7 +1470,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   }, [s.stepDegrees, s.hapticDegrees, s.rotatePad, s.rawPadApi, n, inputLive]);
   const current = games[sel];
   const heroSel = useSettled(sel, HERO_SETTLE_MS);
-  const alpha = s.sortMode === "alpha" && (view.collection ? n >= LETTER_POPUP_MIN_GAMES : s.libraryScope === "all");
+  const alpha = s.sortMode === "alpha" && !view.collection && !view.installedOnly;
   const letters = useMemo(() => games.map((g) => indexLetter(g.name)), [games]);
   const letterCounts = useMemo(() => {
     const m = new Map;
@@ -1692,14 +1704,16 @@ function LetterPopup({ letter, count, show, accent, label }) {
       left: "50%",
       top: "50%",
       transform: "translate(-50%, -50%)",
-      width: 300,
-      height: 300,
+      width: 200,
+      height: 200,
+      borderRadius: 28,
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
       gap: 2,
-      background: "radial-gradient(closest-side, rgba(11,15,22,0.92) 0%, rgba(11,15,22,0.85) 45%, rgba(11,15,22,0.45) 75%, rgba(11,15,22,0) 100%)",
+      background: "rgba(11, 15, 22, 0.88)",
+      boxShadow: "0 0 36px 18px rgba(11, 15, 22, 0.7)",
       opacity: show ? 1 : 0,
       transition: show ? "opacity 80ms ease-out" : "opacity 300ms ease-in",
       pointerEvents: "none",
@@ -1713,7 +1727,7 @@ function LetterPopup({ letter, count, show, accent, label }) {
 }
 function ViewStrip({ views, current, show, accent }) {
   const i = Math.max(0, views.findIndex((v) => v.key === current));
-  const at = (d) => views[(i + d + views.length) % views.length];
+  const at = (d) => views[i + d];
   const label = (v) => (v.collection === "favorite" ? "★ " : "") + v.name;
   const side = { color: "#8b929a", fontSize: 15, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
   const key = { fontSize: 12, fontWeight: 800, color: "#c8d1dc", background: "rgba(255,255,255,0.14)", borderRadius: 6, padding: "2px 7px" };
@@ -1737,15 +1751,15 @@ function ViewStrip({ views, current, show, accent }) {
       whiteSpace: "nowrap"
     }
   }, /* @__PURE__ */ window.SP_REACT.createElement("span", {
-    style: key
-  }, "L1"), views.length > 2 && /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    style: { ...key, opacity: at(-1) ? 1 : 0.3 }
+  }, "L1"), at(-1) && /* @__PURE__ */ window.SP_REACT.createElement("span", {
     style: side
   }, label(at(-1))), /* @__PURE__ */ window.SP_REACT.createElement("span", {
     style: { color: accent, fontSize: 18, fontWeight: 800 }
-  }, label(at(0))), /* @__PURE__ */ window.SP_REACT.createElement("span", {
+  }, label(at(0))), at(1) && /* @__PURE__ */ window.SP_REACT.createElement("span", {
     style: side
   }, label(at(1))), /* @__PURE__ */ window.SP_REACT.createElement("span", {
-    style: key
+    style: { ...key, opacity: at(1) ? 1 : 0.3 }
   }, "R1"));
 }
 function Toast({ text, show, accent, side }) {
@@ -2648,8 +2662,7 @@ function QuickAccessPanel() {
     onChange: (o) => updateSettings({ sortMode: o.data })
   })), /* @__PURE__ */ window.SP_REACT.createElement(ShelfPicker, {
     t,
-    picked: s.shelfCollections,
-    onChange: (ids) => updateSettings({ shelfCollections: ids })
+    s
   })), /* @__PURE__ */ window.SP_REACT.createElement(PanelSection, {
     title: t.display
   }, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(SliderField, {
@@ -2748,23 +2761,27 @@ function QuickAccessPanel() {
     style: { fontSize: 12, color: "#8b929a" }
   }, t.odometer(Math.floor(s.odometerTurns).toLocaleString())))));
 }
-function ShelfPicker({ t, picked, onChange }) {
+function ShelfPicker({ t, s }) {
   const all = listCollections();
-  return /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", {
-    style: { fontSize: 13, fontWeight: 700, marginTop: 6 }
-  }, t.shelf), /* @__PURE__ */ window.SP_REACT.createElement("div", {
-    style: { fontSize: 12, color: "#8b929a", marginTop: 2 }
-  }, all.length ? t.shelfDesc : t.shelfNone)), all.map((c) => /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, {
-    key: c.id
-  }, /* @__PURE__ */ window.SP_REACT.createElement(ToggleField, {
-    label: (c.id === "favorite" ? "★ " : "") + c.name,
-    description: t.shelfCount(c.count),
-    checked: picked.includes(c.id),
-    onChange: (on) => {
-      const next = on ? [...picked.filter((id) => id !== c.id), c.id] : picked.filter((id) => id !== c.id);
-      onChange(all.map((x) => x.id).filter((id) => next.includes(id)));
-    }
-  }))));
+  const fav = all.find((c) => c.id === "favorite");
+  const other = s.libraryScope === "installed" ? "base:all" : "base:installed";
+  const options = [
+    { data: "", label: t.r1None },
+    { data: other, label: other === "base:all" ? t.all : t.installed },
+    ...all.filter((c) => c.id !== "favorite").map((c) => ({ data: c.id, label: `${c.name} (${c.count})` }))
+  ];
+  return /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(ToggleField, {
+    label: t.l1Favorites,
+    description: fav ? t.shelfCount(fav.count) : undefined,
+    checked: s.favoritesOnL1,
+    onChange: (v) => updateSettings({ favoritesOnL1: v })
+  })), /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(DropdownItem, {
+    label: t.r1Pick,
+    description: t.r1Desc,
+    rgOptions: options,
+    selectedOption: options.some((o) => o.data === s.r1View) ? s.r1View : "",
+    onChange: (o) => updateSettings({ r1View: o.data })
+  })));
 }
 var src_default = definePlugin(() => {
   initSettings();

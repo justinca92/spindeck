@@ -27,6 +27,7 @@ import {
   LibraryScope,
   PadSide,
   SortMode,
+  WheelSettings,
   initSettings,
   updateSettings,
   useSettings,
@@ -255,7 +256,7 @@ function QuickAccessPanel() {
             onChange={(o) => updateSettings({ sortMode: o.data as SortMode })}
           />
         </PanelSectionRow>
-        <ShelfPicker t={t} picked={s.shelfCollections} onChange={(ids) => updateSettings({ shelfCollections: ids })} />
+        <ShelfPicker t={t} s={s} />
       </PanelSection>
 
       <PanelSection title={t.display}>
@@ -402,29 +403,35 @@ function QuickAccessPanel() {
   );
 }
 
-/** L1/R1 collections: one toggle per Steam collection (Favorites first). */
-function ShelfPicker({ t, picked, onChange }: { t: Strings; picked: string[]; onChange: (ids: string[]) => void }) {
+/** L1 → ★ Favorites (toggle), R1 → one view the user picks. */
+function ShelfPicker({ t, s }: { t: Strings; s: WheelSettings }) {
   const all = listCollections();
+  const fav = all.find((c) => c.id === "favorite");
+  const other = s.libraryScope === "installed" ? "base:all" : "base:installed";
+  const options = [
+    { data: "", label: t.r1None },
+    { data: other, label: other === "base:all" ? t.all : t.installed },
+    ...all.filter((c) => c.id !== "favorite").map((c) => ({ data: c.id, label: `${c.name} (${c.count})` })),
+  ];
   return (
     <>
       <PanelSectionRow>
-        <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6 }}>{t.shelf}</div>
-        <div style={{ fontSize: 12, color: "#8b929a", marginTop: 2 }}>{all.length ? t.shelfDesc : t.shelfNone}</div>
+        <ToggleField
+          label={t.l1Favorites}
+          description={fav ? t.shelfCount(fav.count) : undefined}
+          checked={s.favoritesOnL1}
+          onChange={(v) => updateSettings({ favoritesOnL1: v })}
+        />
       </PanelSectionRow>
-      {all.map((c) => (
-        <PanelSectionRow key={c.id}>
-          <ToggleField
-            label={(c.id === "favorite" ? "★ " : "") + c.name}
-            description={t.shelfCount(c.count)}
-            checked={picked.includes(c.id)}
-            onChange={(on) => {
-              const next = on ? [...picked.filter((id) => id !== c.id), c.id] : picked.filter((id) => id !== c.id);
-              // Keep Steam's order, whatever order they were switched on in.
-              onChange(all.map((x) => x.id).filter((id) => next.includes(id)));
-            }}
-          />
-        </PanelSectionRow>
-      ))}
+      <PanelSectionRow>
+        <DropdownItem
+          label={t.r1Pick}
+          description={t.r1Desc}
+          rgOptions={options}
+          selectedOption={options.some((o) => o.data === s.r1View) ? s.r1View : ""}
+          onChange={(o) => updateSettings({ r1View: o.data as string })}
+        />
+      </PanelSectionRow>
     </>
   );
 }
