@@ -3,10 +3,16 @@
 ## 1.2.0
 
 ### What's new in 1.2.0
+
+**New**
 - 🎛️ **Pick what each wheel shows.** The main wheel, L1 and R1 can each show Installed games, your whole library, ★ Favorites or any of your Steam collections, each with its own sort. Set them in the panel's Library section (main wheel: Installed games, L1: ★ Favorites by default).
 - ⏮️ **L1 / R1 on the wheel** jump to those views and back, with a quick strip at the top showing where you are.
-- 📍 **The wheel remembers your spot.** Come back from a game page and you're on the same game again, in every view.
+
+**Changed**
 - 🔤 **Alphabet popup** is now a small, see-through square, and only shows while browsing the whole library A–Z.
+
+**Fixed**
+- 📍 **The wheel remembers your spot.** Coming back from a game page used to jump to the first game; now you're on the same game again, in every view.
 
 **Install:** Decky → Developer → Install Plugin from URL →
 https://github.com/justinca92/spindeck/releases/download/v1.2.0/spindeck-1.2.0.zip
