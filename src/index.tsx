@@ -403,35 +403,40 @@ function QuickAccessPanel() {
   );
 }
 
-/** L1 → ★ Favorites (toggle), R1 → one view the user picks. */
+/** L1 / R1: each opens one view the user picks (a collection or a library view), with its own sort. */
 function ShelfPicker({ t, s }: { t: Strings; s: WheelSettings }) {
   const all = listCollections();
-  const fav = all.find((c) => c.id === "favorite");
-  const other = s.libraryScope === "installed" ? "base:all" : "base:installed";
   const options = [
-    { data: "", label: t.r1None },
-    { data: other, label: other === "base:all" ? t.all : t.installed },
-    ...all.filter((c) => c.id !== "favorite").map((c) => ({ data: c.id, label: `${c.name} (${c.count})` })),
+    { data: "", label: t.slotNone },
+    { data: "base:installed", label: t.installed },
+    { data: "base:all", label: t.all },
+    ...all.map((c) => ({ data: c.id, label: `${c.id === "favorite" ? "★ " : ""}${c.name} (${c.count})` })),
   ];
-  return (
+  const sorts = [
+    { data: "recent", label: t.recent },
+    { data: "alpha", label: t.alpha },
+  ];
+  const slot = (label: string, view: string, sort: SortMode, set: (p: Partial<WheelSettings>) => void, viewKey: "l1View" | "r1View", sortKey: "l1Sort" | "r1Sort") => (
     <>
       <PanelSectionRow>
-        <ToggleField
-          label={t.l1Favorites}
-          description={fav ? t.shelfCount(fav.count) : undefined}
-          checked={s.favoritesOnL1}
-          onChange={(v) => updateSettings({ favoritesOnL1: v })}
-        />
-      </PanelSectionRow>
-      <PanelSectionRow>
         <DropdownItem
-          label={t.r1Pick}
-          description={t.r1Desc}
+          label={label}
           rgOptions={options}
-          selectedOption={options.some((o) => o.data === s.r1View) ? s.r1View : ""}
-          onChange={(o) => updateSettings({ r1View: o.data as string })}
+          selectedOption={options.some((o) => o.data === view) ? view : ""}
+          onChange={(o) => set({ [viewKey]: o.data as string })}
         />
       </PanelSectionRow>
+      {view && (
+        <PanelSectionRow>
+          <DropdownItem label={t.slotSort(label)} rgOptions={sorts} selectedOption={sort} onChange={(o) => set({ [sortKey]: o.data as SortMode })} />
+        </PanelSectionRow>
+      )}
+    </>
+  );
+  return (
+    <>
+      {slot("L1", s.l1View, s.l1Sort, updateSettings, "l1View", "l1Sort")}
+      {slot("R1", s.r1View, s.r1Sort, updateSettings, "r1View", "r1Sort")}
     </>
   );
 }

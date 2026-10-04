@@ -298,6 +298,7 @@ interface WheelView {
   name: string;
   collection: string | null; // null = a library view (installed / whole library)
   installedOnly: boolean;    // library views only
+  sort: "recent" | "alpha";
 }
 
 interface WheelPageProps {
@@ -310,29 +311,31 @@ interface WheelPageProps {
 export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = true }: WheelPageProps) {
   const s = useSettings();
   const t = useT();
-  // Three slots in a row: [L1 ★ Favorites] — base view — [R1 the user's pick].
+  // Three slots in a row: [L1 pick] — base view — [R1 pick], each with its own sort.
   // L1/R1 move one step left/right (no wrap-around).
   const views = useMemo<WheelView[]>(() => {
-    const lib = (scope: string): WheelView => ({ key: `base:${scope}`, name: scope === "installed" ? t.installed : t.all, collection: null, installedOnly: scope === "installed" });
-    const base = lib(s.libraryScope);
     const colls = listCollections();
-    const coll = (id: string): WheelView | null => {
+    const make = (id: string, slot: string, sort: "recent" | "alpha"): WheelView | null => {
+      if (!id) return null;
+      if (id.startsWith("base:")) {
+        const scope = id.slice(5);
+        return { key: `${slot}:base:${scope}`, name: scope === "installed" ? t.installed : t.all, collection: null, installedOnly: scope === "installed", sort };
+      }
       const c = colls.find((x) => x.id === id);
-      return c ? { key: `coll:${c.id}`, name: c.name, collection: c.id, installedOnly: false } : null;
+      return c ? { key: `${slot}:coll:${c.id}`, name: c.name, collection: c.id, installedOnly: false, sort } : null;
     };
-    const left = s.favoritesOnL1 ? coll("favorite") : null;
-    const right = !s.r1View ? null : s.r1View.startsWith("base:") ? lib(s.r1View.slice(5)) : coll(s.r1View);
-    return [left, base, right && right.key !== base.key ? right : null].filter((v): v is WheelView => !!v);
-  }, [s.libraryScope, s.favoritesOnL1, s.r1View, t]);
-  const baseKey = `base:${s.libraryScope}`;
+    const base = make(`base:${s.libraryScope}`, "base", s.sortMode)!;
+    return [make(s.l1View, "l1", s.l1Sort), base, make(s.r1View, "r1", s.r1Sort)].filter((v): v is WheelView => !!v);
+  }, [s.libraryScope, s.sortMode, s.l1View, s.l1Sort, s.r1View, s.r1Sort, t]);
+  const baseKey = `base:base:${s.libraryScope}`;
   const [viewKey, setViewKey] = useState<string>(() => lastViewKey ?? baseKey);
   const view = views.find((v) => v.key === viewKey) ?? views.find((v) => v.key === baseKey) ?? views[0];
   useEffect(() => {
     lastViewKey = view.key;
   }, [view.key]);
   const games = useMemo<GameEntry[]>(
-    () => (view.collection ? loadCollectionGames(view.collection, s.sortMode) : loadGames(view.installedOnly, s.sortMode)),
-    [view.key, s.sortMode],
+    () => (view.collection ? loadCollectionGames(view.collection, view.sort) : loadGames(view.installedOnly, view.sort)),
+    [view.key, view.sort],
   );
   const n = games.length;
   const restoreSel = (list: GameEntry[]) => {
@@ -583,7 +586,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
 
   // Alphabet popup: A–Z sort of the whole library only. Installed games and
   // collections are short lists you can see at a glance.
-  const alpha = s.sortMode === "alpha" && !view.collection && !view.installedOnly;
+  const alpha = view.sort === "alpha" && !view.collection && !view.installedOnly;
   const letters = useMemo(() => games.map((g) => indexLetter(g.name)), [games]);
   const letterCounts = useMemo(() => {
     const m = new Map<string, number>();

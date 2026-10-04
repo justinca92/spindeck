@@ -16,8 +16,11 @@ export interface WheelSettings {
   accentColor: string;    // CSS color for highlights
   libraryScope: LibraryScope; // installed games only, or the whole library
   sortMode: SortMode;         // recently played, or A–Z
-  favoritesOnL1: boolean;     // L1 on the wheel → ★ Favorites
-  r1View: string;             // R1 on the wheel → "" (nothing), "base:all" / "base:installed", or a Steam collection id
+  // L1 / R1 on the wheel: "" (nothing), "base:all" / "base:installed", or a Steam collection id; each with its own sort.
+  l1View: string;
+  l1Sort: SortMode;
+  r1View: string;
+  r1Sort: SortMode;
   capsuleScale: number;       // capsule art size multiplier (1 = 80×120)
   textScale: number;          // game title size multiplier
   wheelSizePct: number;       // wheel radius as % of screen width
@@ -43,8 +46,10 @@ export const DEFAULTS: WheelSettings = {
   accentColor: "#66c0f4",
   libraryScope: "installed",
   sortMode: "recent",
-  favoritesOnL1: true,
+  l1View: "favorite",
+  l1Sort: "recent",
   r1View: "",
+  r1Sort: "recent",
   capsuleScale: 1.2,
   textScale: 0.7,
   wheelSizePct: 32,
@@ -118,7 +123,8 @@ export async function initSettings() {
       merged.settingsVersion = 6;
       needsSave = true;
     }
-    delete merged.shelfCollections; // 1.3.0 pre-release: replaced by favoritesOnL1 / r1View
+    delete merged.shelfCollections; // 1.3.0 pre-release builds only
+    delete merged.favoritesOnL1;
     delete merged.hapticMode;
     delete merged.hideRecentShelf; // always on since 0.9.4 (toggle removed)
     current = merged;

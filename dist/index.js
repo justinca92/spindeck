@@ -38,8 +38,10 @@ var DEFAULTS = {
   accentColor: "#66c0f4",
   libraryScope: "installed",
   sortMode: "recent",
-  favoritesOnL1: true,
+  l1View: "favorite",
+  l1Sort: "recent",
   r1View: "",
+  r1Sort: "recent",
   capsuleScale: 1.2,
   textScale: 0.7,
   wheelSizePct: 32,
@@ -100,6 +102,7 @@ async function initSettings() {
       needsSave = true;
     }
     delete merged.shelfCollections;
+    delete merged.favoritesOnL1;
     delete merged.hapticMode;
     delete merged.hideRecentShelf;
     current = merged;
@@ -217,10 +220,8 @@ var ko = {
   sort: "정렬",
   recent: "최근 플레이",
   alpha: "알파벳순 (A–Z)",
-  l1Favorites: "L1: ★ 즐겨찾기",
-  r1Pick: "R1: 내 모음집",
-  r1Desc: "휠 화면에서 R1로 볼 모음집을 하나 고르세요.",
-  r1None: "없음",
+  slotNone: "없음",
+  slotSort: (slot) => `${slot} 정렬`,
   shelfCount: (n) => `게임 ${n}개`,
   display: "표시",
   heroSize: "히어로 이미지 크기",
@@ -279,10 +280,8 @@ var en = {
   sort: "Sort",
   recent: "Recently played",
   alpha: "Alphabetical (A–Z)",
-  l1Favorites: "L1: ★ Favorites",
-  r1Pick: "R1: my collection",
-  r1Desc: "Pick one collection to open with R1 on the wheel.",
-  r1None: "None",
+  slotNone: "None",
+  slotSort: (slot) => `${slot} sort`,
   shelfCount: (n) => `${n} games`,
   display: "Display",
   heroSize: "Hero art size",
@@ -1230,24 +1229,27 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   const s = useSettings();
   const t = useT();
   const views = useMemo(() => {
-    const lib = (scope) => ({ key: `base:${scope}`, name: scope === "installed" ? t.installed : t.all, collection: null, installedOnly: scope === "installed" });
-    const base = lib(s.libraryScope);
     const colls = listCollections();
-    const coll = (id) => {
+    const make = (id, slot, sort) => {
+      if (!id)
+        return null;
+      if (id.startsWith("base:")) {
+        const scope = id.slice(5);
+        return { key: `${slot}:base:${scope}`, name: scope === "installed" ? t.installed : t.all, collection: null, installedOnly: scope === "installed", sort };
+      }
       const c = colls.find((x) => x.id === id);
-      return c ? { key: `coll:${c.id}`, name: c.name, collection: c.id, installedOnly: false } : null;
+      return c ? { key: `${slot}:coll:${c.id}`, name: c.name, collection: c.id, installedOnly: false, sort } : null;
     };
-    const left = s.favoritesOnL1 ? coll("favorite") : null;
-    const right = !s.r1View ? null : s.r1View.startsWith("base:") ? lib(s.r1View.slice(5)) : coll(s.r1View);
-    return [left, base, right && right.key !== base.key ? right : null].filter((v) => !!v);
-  }, [s.libraryScope, s.favoritesOnL1, s.r1View, t]);
-  const baseKey = `base:${s.libraryScope}`;
+    const base = make(`base:${s.libraryScope}`, "base", s.sortMode);
+    return [make(s.l1View, "l1", s.l1Sort), base, make(s.r1View, "r1", s.r1Sort)].filter((v) => !!v);
+  }, [s.libraryScope, s.sortMode, s.l1View, s.l1Sort, s.r1View, s.r1Sort, t]);
+  const baseKey = `base:base:${s.libraryScope}`;
   const [viewKey, setViewKey] = useState(() => lastViewKey ?? baseKey);
   const view = views.find((v) => v.key === viewKey) ?? views.find((v) => v.key === baseKey) ?? views[0];
   useEffect(() => {
     lastViewKey = view.key;
   }, [view.key]);
-  const games = useMemo(() => view.collection ? loadCollectionGames(view.collection, s.sortMode) : loadGames(view.installedOnly, s.sortMode), [view.key, s.sortMode]);
+  const games = useMemo(() => view.collection ? loadCollectionGames(view.collection, view.sort) : loadGames(view.installedOnly, view.sort), [view.key, view.sort]);
   const n = games.length;
   const restoreSel = (list) => {
     const id = lastPick.get(view.key);
@@ -1470,7 +1472,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   }, [s.stepDegrees, s.hapticDegrees, s.rotatePad, s.rawPadApi, n, inputLive]);
   const current = games[sel];
   const heroSel = useSettled(sel, HERO_SETTLE_MS);
-  const alpha = s.sortMode === "alpha" && !view.collection && !view.installedOnly;
+  const alpha = view.sort === "alpha" && !view.collection && !view.installedOnly;
   const letters = useMemo(() => games.map((g) => indexLetter(g.name)), [games]);
   const letterCounts = useMemo(() => {
     const m = new Map;
@@ -2763,25 +2765,28 @@ function QuickAccessPanel() {
 }
 function ShelfPicker({ t, s }) {
   const all = listCollections();
-  const fav = all.find((c) => c.id === "favorite");
-  const other = s.libraryScope === "installed" ? "base:all" : "base:installed";
   const options = [
-    { data: "", label: t.r1None },
-    { data: other, label: other === "base:all" ? t.all : t.installed },
-    ...all.filter((c) => c.id !== "favorite").map((c) => ({ data: c.id, label: `${c.name} (${c.count})` }))
+    { data: "", label: t.slotNone },
+    { data: "base:installed", label: t.installed },
+    { data: "base:all", label: t.all },
+    ...all.map((c) => ({ data: c.id, label: `${c.id === "favorite" ? "★ " : ""}${c.name} (${c.count})` }))
   ];
-  return /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(ToggleField, {
-    label: t.l1Favorites,
-    description: fav ? t.shelfCount(fav.count) : undefined,
-    checked: s.favoritesOnL1,
-    onChange: (v) => updateSettings({ favoritesOnL1: v })
-  })), /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(DropdownItem, {
-    label: t.r1Pick,
-    description: t.r1Desc,
+  const sorts = [
+    { data: "recent", label: t.recent },
+    { data: "alpha", label: t.alpha }
+  ];
+  const slot = (label, view, sort, set, viewKey, sortKey) => /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(DropdownItem, {
+    label,
     rgOptions: options,
-    selectedOption: options.some((o) => o.data === s.r1View) ? s.r1View : "",
-    onChange: (o) => updateSettings({ r1View: o.data })
+    selectedOption: options.some((o) => o.data === view) ? view : "",
+    onChange: (o) => set({ [viewKey]: o.data })
+  })), view && /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(DropdownItem, {
+    label: t.slotSort(label),
+    rgOptions: sorts,
+    selectedOption: sort,
+    onChange: (o) => set({ [sortKey]: o.data })
   })));
+  return /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, slot("L1", s.l1View, s.l1Sort, updateSettings, "l1View", "l1Sort"), slot("R1", s.r1View, s.r1Sort, updateSettings, "r1View", "r1Sort"));
 }
 var src_default = definePlugin(() => {
   initSettings();
