@@ -45,7 +45,7 @@ function urls(app: any, kind: "hero" | "capsule"): string[] {
   return out;
 }
 
-export function loadGames(installedOnly: boolean, sort: "recent" | "alpha"): GameEntry[] {
+export function loadGames(installedOnly: boolean, sort: "recent" | "alpha" | "playtime"): GameEntry[] {
   // Steam's stores aren't a public API: if they change shape, show an empty wheel, never crash.
   try {
     return readGames(installedOnly, sort);
@@ -54,7 +54,7 @@ export function loadGames(installedOnly: boolean, sort: "recent" | "alpha"): Gam
   }
 }
 
-function readGames(installedOnly: boolean, sort: "recent" | "alpha"): GameEntry[] {
+function readGames(installedOnly: boolean, sort: "recent" | "alpha" | "playtime"): GameEntry[] {
   const coll =
     collectionStore?.GetCollection?.("type-games") ??
     collectionStore?.allGamesCollection ??
@@ -88,7 +88,7 @@ export function listCollections(): CollectionInfo[] {
 }
 
 /** Games in one collection (installed or not: a collection is the user's own pick). */
-export function loadCollectionGames(id: string, sort: "recent" | "alpha"): GameEntry[] {
+export function loadCollectionGames(id: string, sort: "recent" | "alpha" | "playtime"): GameEntry[] {
   try {
     const c = collectionStore?.GetCollection?.(id);
     return toEntries(c?.allApps ?? c?.visibleApps ?? [], false, sort);
@@ -97,7 +97,7 @@ export function loadCollectionGames(id: string, sort: "recent" | "alpha"): GameE
   }
 }
 
-function toEntries(apps: any[], installedOnly: boolean, sort: "recent" | "alpha"): GameEntry[] {
+function toEntries(apps: any[], installedOnly: boolean, sort: "recent" | "alpha" | "playtime"): GameEntry[] {
   const list: GameEntry[] = apps
     .filter((a) => a && (a.app_type === APP_TYPE_GAME || a.app_type === APP_TYPE_SHORTCUT))
     .map((a) => ({
@@ -112,8 +112,13 @@ function toEntries(apps: any[], installedOnly: boolean, sort: "recent" | "alpha"
     }))
     .filter((g) => !installedOnly || g.installed);
 
+  const minutes = (g: GameEntry) => Number(g.overview?.minutes_playtime_forever ?? 0);
   list.sort((x, y) =>
-    sort === "alpha" ? x.name.localeCompare(y.name) : y.lastPlayed - x.lastPlayed
+    sort === "alpha"
+      ? x.name.localeCompare(y.name)
+      : sort === "playtime"
+        ? minutes(y) - minutes(x) || y.lastPlayed - x.lastPlayed // most played first; ties by recent
+        : y.lastPlayed - x.lastPlayed
   );
   return list;
 }

@@ -298,7 +298,7 @@ interface WheelView {
   name: string;
   collection: string | null; // null = a library view (installed / whole library)
   installedOnly: boolean;    // library views only
-  sort: "recent" | "alpha";
+  sort: "recent" | "alpha" | "playtime";
 }
 
 interface WheelPageProps {
@@ -315,7 +315,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   // L1/R1 move one step left/right (no wrap-around).
   const views = useMemo<WheelView[]>(() => {
     const colls = listCollections();
-    const make = (id: string, slot: string, sort: "recent" | "alpha"): WheelView | null => {
+    const make = (id: string, slot: string, sort: "recent" | "alpha" | "playtime"): WheelView | null => {
       if (!id) return null;
       if (id.startsWith("base:")) {
         const scope = id.slice(5);

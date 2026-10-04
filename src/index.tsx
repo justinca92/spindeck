@@ -249,6 +249,7 @@ function QuickAccessPanel() {
             rgOptions={[
               { data: "recent", label: t.recent },
               { data: "alpha", label: t.alpha },
+              { data: "playtime", label: t.byPlaytime },
             ]}
             selectedOption={s.sortMode}
             onChange={(o) => updateSettings({ sortMode: o.data as SortMode })}
@@ -417,6 +418,7 @@ function ShelfPicker({ t, s }: { t: Strings; s: WheelSettings }) {
   const sorts = [
     { data: "recent", label: t.recent },
     { data: "alpha", label: t.alpha },
+    { data: "playtime", label: t.byPlaytime },
   ];
   const slot = (label: string, view: string, sort: SortMode, set: (p: Partial<WheelSettings>) => void, viewKey: "l1View" | "r1View", sortKey: "l1Sort" | "r1Sort") => (
     <>

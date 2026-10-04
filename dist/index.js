@@ -223,6 +223,7 @@ var ko = {
   sort: "정렬",
   recent: "최근 플레이",
   alpha: "알파벳순 (A–Z)",
+  byPlaytime: "플레이 시간순",
   slotNone: "없음",
   shelfCount: (n) => `게임 ${n}개`,
   display: "표시",
@@ -282,6 +283,7 @@ var en = {
   sort: "Sort",
   recent: "Recently played",
   alpha: "Alphabetical (A–Z)",
+  byPlaytime: "Most played",
   slotNone: "None",
   shelfCount: (n) => `${n} games`,
   display: "Display",
@@ -403,7 +405,8 @@ function toEntries(apps, installedOnly, sort) {
     capsule: urls(a, "capsule"),
     overview: a
   })).filter((g) => !installedOnly || g.installed);
-  list.sort((x, y) => sort === "alpha" ? x.name.localeCompare(y.name) : y.lastPlayed - x.lastPlayed);
+  const minutes = (g) => Number(g.overview?.minutes_playtime_forever ?? 0);
+  list.sort((x, y) => sort === "alpha" ? x.name.localeCompare(y.name) : sort === "playtime" ? minutes(y) - minutes(x) || y.lastPlayed - x.lastPlayed : y.lastPlayed - x.lastPlayed);
   return list;
 }
 function openGamePage(g) {
@@ -2658,7 +2661,8 @@ function QuickAccessPanel() {
     indentLevel: 1,
     rgOptions: [
       { data: "recent", label: t.recent },
-      { data: "alpha", label: t.alpha }
+      { data: "alpha", label: t.alpha },
+      { data: "playtime", label: t.byPlaytime }
     ],
     selectedOption: s.sortMode,
     onChange: (o) => updateSettings({ sortMode: o.data })
@@ -2775,7 +2779,8 @@ function ShelfPicker({ t, s }) {
   const options = viewOptions(t, true);
   const sorts = [
     { data: "recent", label: t.recent },
-    { data: "alpha", label: t.alpha }
+    { data: "alpha", label: t.alpha },
+    { data: "playtime", label: t.byPlaytime }
   ];
   const slot = (label, view, sort, set, viewKey, sortKey) => /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(DropdownItem, {
     label,

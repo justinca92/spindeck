@@ -5,7 +5,7 @@ import { callable } from "@decky/api";
 import { useEffect, useState } from "react";
 import { getLang } from "./locale";
 
-export type SortMode = "recent" | "alpha";
+export type SortMode = "recent" | "alpha" | "playtime";
 export type PadSide = "left" | "right";
 
 export interface WheelSettings {
