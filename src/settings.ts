@@ -45,7 +45,7 @@ export const DEFAULTS: WheelSettings = {
   accentColor: "#66c0f4",
   baseView: "base:installed",
   sortMode: "recent",
-  l1View: "favorite",
+  l1View: "",
   l1Sort: "recent",
   r1View: "",
   r1Sort: "recent",
