@@ -18,6 +18,9 @@ import {
   HAPTIC_MUTE_AFTER_B_MS,
   HERO_SETTLE_MS,
   LETTER_FAST_STEPS,
+  VIEW_ANIM_DEG,
+  VIEW_ANIM_IN_MS,
+  VIEW_ANIM_OUT_MS,
   VIEW_STRIP_MS,
   VIEW_STRIP_TOP_PX,
   ODOMETER_SAVE_MS,
@@ -434,16 +437,44 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   const [strip, setStrip] = useState(false);
   const stripTimer = useRef<any>(null);
   useEffect(() => () => clearTimeout(stripTimer.current), []);
+  // Revolver swap: the wheel turns out like a cylinder, the next one turns in
+  // the same way and locks with a click. Optional (panel toggle).
+  const [ringFx, setRingFx] = useState({ rot: 0, op: 1, ms: 0, ease: "linear" });
+  const fxBusy = useRef(false);
+  const fxTimers = useRef<any[]>([]);
+  useEffect(() => () => fxTimers.current.forEach(clearTimeout), []);
+  const later = (ms: number, f: () => void) => fxTimers.current.push(setTimeout(f, ms));
   const switchView = (d: 1 | -1) => {
-    if (views.length < 2) return;
-    if (spinningRef.current) stopSpin(false);
+    if (views.length < 2 || fxBusy.current) return;
     const j = views.findIndex((v) => v.key === view.key) + d;
     if (j < 0 || j >= views.length) return; // end of the row: stay
-    setViewKey(views[j].key);
+    if (spinningRef.current) stopSpin(false);
+    const target = views[j].key;
     if (live.current.sound) playUiSound("screen");
     setStrip(true);
     clearTimeout(stripTimer.current);
     stripTimer.current = setTimeout(() => setStrip(false), VIEW_STRIP_MS);
+    if (!s.viewAnim) {
+      setViewKey(target);
+      return;
+    }
+    // Keep turning the same way whichever edge the wheel is on.
+    const turn = (flip ? -1 : 1) * d * VIEW_ANIM_DEG;
+    fxBusy.current = true;
+    setRingFx({ rot: turn, op: 0, ms: VIEW_ANIM_OUT_MS, ease: "cubic-bezier(0.55, 0, 0.9, 0.45)" });
+    later(VIEW_ANIM_OUT_MS, () => {
+      setViewKey(target);
+      setRingFx({ rot: -turn, op: 0, ms: 0, ease: "linear" }); // jump to the far side, invisible
+      later(24, () => {
+        setRingFx({ rot: 0, op: 1, ms: VIEW_ANIM_IN_MS, ease: "cubic-bezier(0.25, 1.45, 0.5, 1)" }); // overshoot = the lock
+        later(VIEW_ANIM_IN_MS * 0.7, () => {
+          if (live.current.haptic) wheelTick(live.current.pad, live.current.circleOn, live.current.hapticLevel);
+        });
+        later(VIEW_ANIM_IN_MS, () => {
+          fxBusy.current = false;
+        });
+      });
+    });
   };
 
   // Ⓨ roulette: spins forward, slowing down, and lands on a random game.
@@ -762,6 +793,16 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
 
         <Hero game={games[heroSel]} flip={flip} heroScale={s.heroScale} />
 
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            transformOrigin: `${flip ? -size.w * 0.02 : size.w * 1.02}px ${size.h / 2}px`, // the wheel's centre
+            transform: `rotate(${ringFx.rot}deg)`,
+            opacity: ringFx.op,
+            transition: ringFx.ms ? `transform ${ringFx.ms}ms ${ringFx.ease}, opacity ${ringFx.ms}ms ${ringFx.ease}` : "none",
+          }}
+        >
         <WheelRing
           games={games}
           sel={sel}
@@ -775,6 +816,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
           textScale={s.textScale}
           accentColor={s.accentColor}
         />
+        </div>
 
         {alpha && popup.letter && (
           <LetterPopup letter={popup.letter} count={letterCounts.get(popup.letter) ?? 0} show={popup.show} accent={s.accentColor} label={t.letterCount} />

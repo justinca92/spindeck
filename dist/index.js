@@ -42,6 +42,7 @@ var DEFAULTS = {
   l1Sort: "recent",
   r1View: "",
   r1Sort: "recent",
+  viewAnim: true,
   capsuleScale: 1.2,
   textScale: 0.7,
   wheelSizePct: 32,
@@ -225,6 +226,8 @@ var ko = {
   alpha: "알파벳순 (A–Z)",
   byPlaytime: "플레이 시간순",
   slotNone: "없음",
+  viewAnim: "L1/R1 전환 애니메이션",
+  viewAnimDesc: "휠이 리볼버 실린더처럼 돌아 나가고 새 휠이 철컥 맞물려요.",
   shelfCount: (n) => `게임 ${n}개`,
   display: "표시",
   heroSize: "히어로 이미지 크기",
@@ -287,6 +290,8 @@ var en = {
   alpha: "Alphabetical (A–Z)",
   byPlaytime: "Most played",
   slotNone: "None",
+  viewAnim: "L1/R1 switch animation",
+  viewAnimDesc: "The wheel turns out like a revolver cylinder and the next one clicks into place.",
   shelfCount: (n) => `${n} games`,
   display: "Display",
   heroSize: "Hero art size",
@@ -1050,6 +1055,9 @@ var TOAST_MS = 3500;
 var TOAST_TOP_PX = 84;
 var VIEW_STRIP_MS = 1800;
 var VIEW_STRIP_TOP_PX = 44;
+var VIEW_ANIM_DEG = 70;
+var VIEW_ANIM_OUT_MS = 170;
+var VIEW_ANIM_IN_MS = 300;
 
 // src/WheelPage.tsx
 var BASE_CAPSULE_W = 80;
@@ -1372,20 +1380,46 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   const [strip, setStrip] = useState(false);
   const stripTimer = useRef(null);
   useEffect(() => () => clearTimeout(stripTimer.current), []);
+  const [ringFx, setRingFx] = useState({ rot: 0, op: 1, ms: 0, ease: "linear" });
+  const fxBusy = useRef(false);
+  const fxTimers = useRef([]);
+  useEffect(() => () => fxTimers.current.forEach(clearTimeout), []);
+  const later = (ms, f) => fxTimers.current.push(setTimeout(f, ms));
   const switchView = (d) => {
-    if (views.length < 2)
+    if (views.length < 2 || fxBusy.current)
       return;
-    if (spinningRef.current)
-      stopSpin(false);
     const j = views.findIndex((v) => v.key === view.key) + d;
     if (j < 0 || j >= views.length)
       return;
-    setViewKey(views[j].key);
+    if (spinningRef.current)
+      stopSpin(false);
+    const target = views[j].key;
     if (live.current.sound)
       playUiSound("screen");
     setStrip(true);
     clearTimeout(stripTimer.current);
     stripTimer.current = setTimeout(() => setStrip(false), VIEW_STRIP_MS);
+    if (!s.viewAnim) {
+      setViewKey(target);
+      return;
+    }
+    const turn = (flip ? -1 : 1) * d * VIEW_ANIM_DEG;
+    fxBusy.current = true;
+    setRingFx({ rot: turn, op: 0, ms: VIEW_ANIM_OUT_MS, ease: "cubic-bezier(0.55, 0, 0.9, 0.45)" });
+    later(VIEW_ANIM_OUT_MS, () => {
+      setViewKey(target);
+      setRingFx({ rot: -turn, op: 0, ms: 0, ease: "linear" });
+      later(24, () => {
+        setRingFx({ rot: 0, op: 1, ms: VIEW_ANIM_IN_MS, ease: "cubic-bezier(0.25, 1.45, 0.5, 1)" });
+        later(VIEW_ANIM_IN_MS * 0.7, () => {
+          if (live.current.haptic)
+            wheelTick(live.current.pad, live.current.circleOn, live.current.hapticLevel);
+        });
+        later(VIEW_ANIM_IN_MS, () => {
+          fxBusy.current = false;
+        });
+      });
+    });
   };
   const spinTimer = useRef(null);
   const doneTimer = useRef(null);
@@ -1670,7 +1704,16 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     game: games[heroSel],
     flip,
     heroScale: s.heroScale
-  }), /* @__PURE__ */ window.SP_REACT.createElement(WheelRing, {
+  }), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: {
+      position: "absolute",
+      inset: 0,
+      transformOrigin: `${flip ? -size.w * 0.02 : size.w * 1.02}px ${size.h / 2}px`,
+      transform: `rotate(${ringFx.rot}deg)`,
+      opacity: ringFx.op,
+      transition: ringFx.ms ? `transform ${ringFx.ms}ms ${ringFx.ease}, opacity ${ringFx.ms}ms ${ringFx.ease}` : "none"
+    }
+  }, /* @__PURE__ */ window.SP_REACT.createElement(WheelRing, {
     games,
     sel,
     motion,
@@ -1682,7 +1725,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     capsuleScale: s.capsuleScale,
     textScale: s.textScale,
     accentColor: s.accentColor
-  }), alpha && popup.letter && /* @__PURE__ */ window.SP_REACT.createElement(LetterPopup, {
+  })), alpha && popup.letter && /* @__PURE__ */ window.SP_REACT.createElement(LetterPopup, {
     letter: popup.letter,
     count: letterCounts.get(popup.letter) ?? 0,
     show: popup.show,
@@ -2849,7 +2892,12 @@ function ShelfPicker({ t, s }) {
     selectedOption: sort,
     onChange: (o) => set({ [sortKey]: o.data })
   })));
-  return /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, slot("L1", s.l1View, s.l1Sort, updateSettings, "l1View", "l1Sort"), slot("R1", s.r1View, s.r1Sort, updateSettings, "r1View", "r1Sort"));
+  return /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, slot("L1", s.l1View, s.l1Sort, updateSettings, "l1View", "l1Sort"), slot("R1", s.r1View, s.r1Sort, updateSettings, "r1View", "r1Sort"), (s.l1View || s.r1View) && /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(ToggleField, {
+    label: t.viewAnim,
+    description: t.viewAnimDesc,
+    checked: s.viewAnim,
+    onChange: (v) => updateSettings({ viewAnim: v })
+  })));
 }
 var src_default = definePlugin(() => {
   initSettings();

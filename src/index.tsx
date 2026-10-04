@@ -448,6 +448,11 @@ function ShelfPicker({ t, s }: { t: Strings; s: WheelSettings }) {
     <>
       {slot("L1", s.l1View, s.l1Sort, updateSettings, "l1View", "l1Sort")}
       {slot("R1", s.r1View, s.r1Sort, updateSettings, "r1View", "r1Sort")}
+      {(s.l1View || s.r1View) && (
+        <PanelSectionRow>
+          <ToggleField label={t.viewAnim} description={t.viewAnimDesc} checked={s.viewAnim} onChange={(v) => updateSettings({ viewAnim: v })} />
+        </PanelSectionRow>
+      )}
     </>
   );
 }

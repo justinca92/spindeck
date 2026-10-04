@@ -61,3 +61,7 @@ export const TOAST_TOP_PX = 84;
 /** L1/R1 view strip: how long it stays after switching, and its distance from the top. */
 export const VIEW_STRIP_MS = 1800;
 export const VIEW_STRIP_TOP_PX = 44;
+/** L1/R1 revolver swap: how far the wheel turns out/in, and how long each half takes. */
+export const VIEW_ANIM_DEG = 70;
+export const VIEW_ANIM_OUT_MS = 170;
+export const VIEW_ANIM_IN_MS = 300;

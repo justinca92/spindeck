@@ -20,6 +20,7 @@ export interface WheelSettings {
   l1Sort: SortMode;
   r1View: string;
   r1Sort: SortMode;
+  viewAnim: boolean;          // L1/R1 swap animation (revolver)
   capsuleScale: number;       // capsule art size multiplier (1 = 80×120)
   textScale: number;          // game title size multiplier
   wheelSizePct: number;       // wheel radius as % of screen width
@@ -49,6 +50,7 @@ export const DEFAULTS: WheelSettings = {
   l1Sort: "recent",
   r1View: "",
   r1Sort: "recent",
+  viewAnim: true,
   capsuleScale: 1.2,
   textScale: 0.7,
   wheelSizePct: 32,

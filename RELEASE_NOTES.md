@@ -9,6 +9,7 @@
 - ⏱️ **New sort: Most played.** Sort any wheel by total playtime, next to Recently played and A–Z.
 - ↻ **Reload the wheel** button in the panel's About section, for when the screen gets stuck. Settings are kept.
 - ⏮️ **L1 / R1 on the wheel** jump to those views and back, with a quick strip at the top showing where you are.
+- 🔫 **Revolver swap.** Switching with L1/R1, the wheel turns out like a revolver cylinder and the next one clicks into place (with a haptic click). Can be turned off in the panel.
 
 **Changed**
 - 🔤 **Alphabet popup** is now a small, see-through square, and only shows while browsing the whole library A–Z.
