@@ -30,6 +30,8 @@ export const ACHIEVEMENTS_DELAY_MS = 200;
 /** Wheel position follow: exponential time constant, and max lag in games. */
 export const WHEEL_FOLLOW_TAU_MS = 55;
 export const WHEEL_MAX_LAG = 2;
+/** Run the next wheel frame from a timer if no animation frame came by then (boot: frames can stall). */
+export const FRAME_FALLBACK_MS = 40;
 
 /** Scroll is considered settled after this long without scroll events. */
 export const SCROLL_SETTLE_MS = 140;

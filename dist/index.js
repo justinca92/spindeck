@@ -1082,6 +1082,7 @@ var HERO_SETTLE_MS = 150;
 var ACHIEVEMENTS_DELAY_MS = 200;
 var WHEEL_FOLLOW_TAU_MS = 55;
 var WHEEL_MAX_LAG = 2;
+var FRAME_FALLBACK_MS = 40;
 var SCROLL_SETTLE_MS = 140;
 var HEADER_REAPPLY_MS = 1000;
 var HEADER_RESCAN_MS = 5000;
@@ -1154,14 +1155,34 @@ class WheelMotion {
     this.kick();
   }
   stop() {
-    if (this.raf != null)
-      (this.view.cancelAnimationFrame ?? clearTimeout)(this.raf);
+    this.raf?.cancel();
     this.raf = null;
   }
   kick() {
     if (this.raf != null)
       return;
-    const raf = (f) => this.view.requestAnimationFrame ? this.view.requestAnimationFrame(f) : setTimeout(() => f(Date.now()), 16);
+    const raf = (f) => {
+      let done = false;
+      const run = () => {
+        if (done)
+          return;
+        done = true;
+        clearTimeout(tid);
+        try {
+          if (rid != null)
+            this.view.cancelAnimationFrame?.(rid);
+        } catch {}
+        f(performance.now());
+      };
+      let rid = null;
+      try {
+        rid = this.view.requestAnimationFrame?.(run) ?? null;
+      } catch {
+        rid = null;
+      }
+      const tid = setTimeout(run, rid == null ? 16 : FRAME_FALLBACK_MS);
+      return { cancel: () => (done = true, clearTimeout(tid), rid != null && this.view.cancelAnimationFrame?.(rid)) };
+    };
     let last = 0;
     const frame = (t) => {
       const dt = last ? Math.min(50, t - last) : 16;

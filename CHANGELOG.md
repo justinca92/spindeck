@@ -6,6 +6,9 @@
 - **No Deck haptics while docked** (panel → Controls, on by default). Docked = the wheel isn't rendering at the Deck's own 16:10 1280×800 (i.e. an external display).
 - Diagnostics in the console (debug level): each new analog input (controller index + type) and the connected controller list, to work out left-stick input and Steam Controller 2 support.
 
+### Fixed
+- **After a reboot, D-pad / left stick left-right played the sound but the wheel didn't turn** until you went to search or What's New and back. Right after boot Steam's window may not deliver animation frames yet; the wheel animation now falls back to a timer when a frame doesn't arrive within 40 ms.
+
 ### Changed
 - **Smoother wheel.** Capsule darkening is a black overlay's opacity instead of `filter: brightness()` (which repainted every capsule image every frame), each capsule is its own compositor layer (`will-change: transform`), and the blurred backdrop is drawn at a quarter size and scaled up (~16× less blurring work).
 

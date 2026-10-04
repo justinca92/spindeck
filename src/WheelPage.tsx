@@ -37,6 +37,7 @@ import {
   ROULETTE_STEP_MS,
   WHEEL_FOLLOW_TAU_MS,
   WHEEL_MAX_LAG,
+  FRAME_FALLBACK_MS,
   WINDOW_REFOCUS_DELAY_MS,
 } from "./constants";
 
@@ -77,7 +78,7 @@ function preload(url: string | undefined) {
 class WheelMotion {
   target = 0;
   pos = 0;
-  private raf: any = null;
+  private raf: { cancel: () => void } | null = null;
   private listeners = new Set<(pos: number) => void>();
   view: any = globalThis;
 
@@ -92,13 +93,37 @@ class WheelMotion {
     this.kick();
   }
   stop() {
-    if (this.raf != null) (this.view.cancelAnimationFrame ?? clearTimeout)(this.raf);
+    this.raf?.cancel();
     this.raf = null;
   }
   private kick() {
     if (this.raf != null) return;
-    const raf = (f: (t: number) => void) =>
-      this.view.requestAnimationFrame ? this.view.requestAnimationFrame(f) : setTimeout(() => f(Date.now()), 16);
+    // Animation frames, with a timer as backup: right after boot Steam's window
+    // can be "not visible yet" and never deliver animation frames (seen on
+    // device: the selection moved and the sound played, but the wheel stood
+    // still until focus left and came back). Whichever fires first runs the frame.
+    const raf = (f: (t: number) => void) => {
+      let done = false;
+      const run = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(tid);
+        try {
+          if (rid != null) this.view.cancelAnimationFrame?.(rid);
+        } catch {
+          /* ignore */
+        }
+        f(performance.now());
+      };
+      let rid: any = null;
+      try {
+        rid = this.view.requestAnimationFrame?.(run) ?? null;
+      } catch {
+        rid = null;
+      }
+      const tid = setTimeout(run, rid == null ? 16 : FRAME_FALLBACK_MS);
+      return { cancel: () => ((done = true), clearTimeout(tid), rid != null && this.view.cancelAnimationFrame?.(rid)) };
+    };
     let last = 0;
     const frame = (t: number) => {
       const dt = last ? Math.min(50, t - last) : 16;
