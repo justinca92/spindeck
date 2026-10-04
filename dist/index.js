@@ -217,14 +217,13 @@ var ko = {
   hangulDesc: "스팀 키보드의 한글이 이 패널에선 입력되지 않아서, 전용 한글 자판을 써요",
   accent: "포인트 색상",
   library: "라이브러리",
-  view: "보기",
+  view: "메인 휠",
   installed: "설치된 게임",
   all: "모든 라이브러리",
   sort: "정렬",
   recent: "최근 플레이",
   alpha: "알파벳순 (A–Z)",
   slotNone: "없음",
-  slotSort: (slot) => `${slot} 정렬`,
   shelfCount: (n) => `게임 ${n}개`,
   display: "표시",
   heroSize: "히어로 이미지 크기",
@@ -277,14 +276,13 @@ var en = {
   hangulDesc: "Steam's keyboard can't type Korean in this panel, so use this keypad",
   accent: "Accent color",
   library: "Library",
-  view: "Show",
+  view: "Main wheel",
   installed: "Installed games",
   all: "Whole library",
   sort: "Sort",
   recent: "Recently played",
   alpha: "Alphabetical (A–Z)",
   slotNone: "None",
-  slotSort: (slot) => `${slot} sort`,
   shelfCount: (n) => `${n} games`,
   display: "Display",
   heroSize: "Hero art size",
@@ -2651,11 +2649,13 @@ function QuickAccessPanel() {
     title: t.library
   }, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(DropdownItem, {
     label: t.view,
+    bottomSeparator: "none",
     rgOptions: viewOptions(t, false),
     selectedOption: viewOptions(t, false).some((o) => o.data === s.baseView) ? s.baseView : "base:installed",
     onChange: (o) => updateSettings({ baseView: o.data })
   })), /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(DropdownItem, {
     label: t.sort,
+    indentLevel: 1,
     rgOptions: [
       { data: "recent", label: t.recent },
       { data: "alpha", label: t.alpha }
@@ -2779,11 +2779,13 @@ function ShelfPicker({ t, s }) {
   ];
   const slot = (label, view, sort, set, viewKey, sortKey) => /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(DropdownItem, {
     label,
+    bottomSeparator: view ? "none" : "standard",
     rgOptions: options,
     selectedOption: options.some((o) => o.data === view) ? view : "",
     onChange: (o) => set({ [viewKey]: o.data })
   })), view && /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(DropdownItem, {
-    label: t.slotSort(label),
+    label: t.sort,
+    indentLevel: 1,
     rgOptions: sorts,
     selectedOption: sort,
     onChange: (o) => set({ [sortKey]: o.data })

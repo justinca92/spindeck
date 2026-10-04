@@ -236,6 +236,7 @@ function QuickAccessPanel() {
         <PanelSectionRow>
           <DropdownItem
             label={t.view}
+            bottomSeparator="none"
             rgOptions={viewOptions(t, false)}
             selectedOption={viewOptions(t, false).some((o) => o.data === s.baseView) ? s.baseView : "base:installed"}
             onChange={(o) => updateSettings({ baseView: o.data as string })}
@@ -244,6 +245,7 @@ function QuickAccessPanel() {
         <PanelSectionRow>
           <DropdownItem
             label={t.sort}
+            indentLevel={1}
             rgOptions={[
               { data: "recent", label: t.recent },
               { data: "alpha", label: t.alpha },
@@ -421,6 +423,7 @@ function ShelfPicker({ t, s }: { t: Strings; s: WheelSettings }) {
       <PanelSectionRow>
         <DropdownItem
           label={label}
+          bottomSeparator={view ? "none" : "standard"}
           rgOptions={options}
           selectedOption={options.some((o) => o.data === view) ? view : ""}
           onChange={(o) => set({ [viewKey]: o.data as string })}
@@ -428,7 +431,7 @@ function ShelfPicker({ t, s }: { t: Strings; s: WheelSettings }) {
       </PanelSectionRow>
       {view && (
         <PanelSectionRow>
-          <DropdownItem label={t.slotSort(label)} rgOptions={sorts} selectedOption={sort} onChange={(o) => set({ [sortKey]: o.data as SortMode })} />
+          <DropdownItem label={t.sort} indentLevel={1} rgOptions={sorts} selectedOption={sort} onChange={(o) => set({ [sortKey]: o.data as SortMode })} />
         </PanelSectionRow>
       )}
     </>
