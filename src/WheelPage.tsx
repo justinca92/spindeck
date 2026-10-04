@@ -766,12 +766,6 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
             textAlign: flip ? "right" : "left",
           }}
         >
-          {views.length > 1 && (
-            <div style={{ fontSize: 13, fontWeight: 700, color: s.accentColor, marginBottom: 8, letterSpacing: "0.04em" }}>
-              {view.collection === "favorite" ? "★ " : ""}
-              {view.name}
-            </div>
-          )}
           <RoulettePill state={roulette} accent={s.accentColor} label={roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette} />
           {current && (
             <div

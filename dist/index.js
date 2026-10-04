@@ -1643,9 +1643,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       textShadow: "0 2px 8px #000",
       textAlign: flip ? "right" : "left"
     }
-  }, views.length > 1 && /* @__PURE__ */ window.SP_REACT.createElement("div", {
-    style: { fontSize: 13, fontWeight: 700, color: s.accentColor, marginBottom: 8, letterSpacing: "0.04em" }
-  }, view.collection === "favorite" ? "★ " : "", view.name), /* @__PURE__ */ window.SP_REACT.createElement(RoulettePill, {
+  }, /* @__PURE__ */ window.SP_REACT.createElement(RoulettePill, {
     state: roulette,
     accent: s.accentColor,
     label: roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette
