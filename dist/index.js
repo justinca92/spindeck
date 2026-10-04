@@ -1567,6 +1567,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     onGamepadDirection: onDir,
     onButtonDown: (e) => {
       const b = e.detail.button;
+      debug("buttons", "down", b, { L1: GamepadButton.BUMPER_LEFT, R1: GamepadButton.BUMPER_RIGHT, views: views.map((v) => v.key) });
       if ((b === GamepadButton.BUMPER_LEFT || b === GamepadButton.BUMPER_RIGHT) && views.length > 1) {
         consume(e);
         switchView(b === GamepadButton.BUMPER_LEFT ? -1 : 1);
