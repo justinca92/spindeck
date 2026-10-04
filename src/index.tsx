@@ -24,7 +24,6 @@ import { SafeBoundary, teardownAll } from "./safety";
 import { sweepLeftovers } from "./steamDom";
 import { useEffect, useRef, useState } from "react";
 import {
-  LibraryScope,
   PadSide,
   SortMode,
   WheelSettings,
@@ -237,12 +236,9 @@ function QuickAccessPanel() {
         <PanelSectionRow>
           <DropdownItem
             label={t.view}
-            rgOptions={[
-              { data: "installed", label: t.installed },
-              { data: "all", label: t.all },
-            ]}
-            selectedOption={s.libraryScope}
-            onChange={(o) => updateSettings({ libraryScope: o.data as LibraryScope })}
+            rgOptions={viewOptions(t, false)}
+            selectedOption={viewOptions(t, false).some((o) => o.data === s.baseView) ? s.baseView : "base:installed"}
+            onChange={(o) => updateSettings({ baseView: o.data as string })}
           />
         </PanelSectionRow>
         <PanelSectionRow>
@@ -403,15 +399,19 @@ function QuickAccessPanel() {
   );
 }
 
-/** L1 / R1: each opens one view the user picks (a collection or a library view), with its own sort. */
-function ShelfPicker({ t, s }: { t: Strings; s: WheelSettings }) {
-  const all = listCollections();
-  const options = [
-    { data: "", label: t.slotNone },
+/** Views a wheel slot can show: installed games, whole library, ★ Favorites and every Steam collection. */
+function viewOptions(t: Strings, withNone: boolean) {
+  return [
+    ...(withNone ? [{ data: "", label: t.slotNone }] : []),
     { data: "base:installed", label: t.installed },
     { data: "base:all", label: t.all },
-    ...all.map((c) => ({ data: c.id, label: `${c.id === "favorite" ? "★ " : ""}${c.name} (${c.count})` })),
+    ...listCollections().map((c) => ({ data: c.id, label: `${c.id === "favorite" ? "★ " : ""}${c.name} (${c.count})` })),
   ];
+}
+
+/** L1 / R1: each opens one view the user picks (a collection or a library view), with its own sort. */
+function ShelfPicker({ t, s }: { t: Strings; s: WheelSettings }) {
+  const options = viewOptions(t, true);
   const sorts = [
     { data: "recent", label: t.recent },
     { data: "alpha", label: t.alpha },

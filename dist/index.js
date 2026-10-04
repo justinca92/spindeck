@@ -36,7 +36,7 @@ var DEFAULTS = {
   ownerText: "나의 스팀덱",
   subtitleText: "",
   accentColor: "#66c0f4",
-  libraryScope: "installed",
+  baseView: "base:installed",
   sortMode: "recent",
   l1View: "favorite",
   l1Sort: "recent",
@@ -72,6 +72,9 @@ async function initSettings() {
     if (saved && "installedOnly" in saved && !("libraryScope" in saved)) {
       merged.libraryScope = saved.installedOnly ? "installed" : "all";
     }
+    if (saved && !("baseView" in saved) && merged.libraryScope)
+      merged.baseView = `base:${merged.libraryScope}`;
+    delete merged.libraryScope;
     delete merged.installedOnly;
     delete merged.clockwiseIsNext;
     if ((merged.settingsVersion ?? 1) < 2) {
@@ -1240,10 +1243,10 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       const c = colls.find((x) => x.id === id);
       return c ? { key: `${slot}:coll:${c.id}`, name: c.name, collection: c.id, installedOnly: false, sort } : null;
     };
-    const base = make(`base:${s.libraryScope}`, "base", s.sortMode);
+    const base = make(s.baseView, "base", s.sortMode) ?? make("base:installed", "base", s.sortMode);
     return [make(s.l1View, "l1", s.l1Sort), base, make(s.r1View, "r1", s.r1Sort)].filter((v) => !!v);
-  }, [s.libraryScope, s.sortMode, s.l1View, s.l1Sort, s.r1View, s.r1Sort, t]);
-  const baseKey = `base:base:${s.libraryScope}`;
+  }, [s.baseView, s.sortMode, s.l1View, s.l1Sort, s.r1View, s.r1Sort, t]);
+  const baseKey = views.find((v) => v.key.startsWith("base:")).key;
   const [viewKey, setViewKey] = useState(() => lastViewKey ?? baseKey);
   const view = views.find((v) => v.key === viewKey) ?? views.find((v) => v.key === baseKey) ?? views[0];
   useEffect(() => {
@@ -2648,12 +2651,9 @@ function QuickAccessPanel() {
     title: t.library
   }, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(DropdownItem, {
     label: t.view,
-    rgOptions: [
-      { data: "installed", label: t.installed },
-      { data: "all", label: t.all }
-    ],
-    selectedOption: s.libraryScope,
-    onChange: (o) => updateSettings({ libraryScope: o.data })
+    rgOptions: viewOptions(t, false),
+    selectedOption: viewOptions(t, false).some((o) => o.data === s.baseView) ? s.baseView : "base:installed",
+    onChange: (o) => updateSettings({ baseView: o.data })
   })), /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(DropdownItem, {
     label: t.sort,
     rgOptions: [
@@ -2763,14 +2763,16 @@ function QuickAccessPanel() {
     style: { fontSize: 12, color: "#8b929a" }
   }, t.odometer(Math.floor(s.odometerTurns).toLocaleString())))));
 }
-function ShelfPicker({ t, s }) {
-  const all = listCollections();
-  const options = [
-    { data: "", label: t.slotNone },
+function viewOptions(t, withNone) {
+  return [
+    ...withNone ? [{ data: "", label: t.slotNone }] : [],
     { data: "base:installed", label: t.installed },
     { data: "base:all", label: t.all },
-    ...all.map((c) => ({ data: c.id, label: `${c.id === "favorite" ? "★ " : ""}${c.name} (${c.count})` }))
+    ...listCollections().map((c) => ({ data: c.id, label: `${c.id === "favorite" ? "★ " : ""}${c.name} (${c.count})` }))
   ];
+}
+function ShelfPicker({ t, s }) {
+  const options = viewOptions(t, true);
   const sorts = [
     { data: "recent", label: t.recent },
     { data: "alpha", label: t.alpha }

@@ -324,10 +324,11 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
       const c = colls.find((x) => x.id === id);
       return c ? { key: `${slot}:coll:${c.id}`, name: c.name, collection: c.id, installedOnly: false, sort } : null;
     };
-    const base = make(`base:${s.libraryScope}`, "base", s.sortMode)!;
+    // The main view can't be empty: a deleted collection falls back to installed games.
+    const base = make(s.baseView, "base", s.sortMode) ?? make("base:installed", "base", s.sortMode)!;
     return [make(s.l1View, "l1", s.l1Sort), base, make(s.r1View, "r1", s.r1Sort)].filter((v): v is WheelView => !!v);
-  }, [s.libraryScope, s.sortMode, s.l1View, s.l1Sort, s.r1View, s.r1Sort, t]);
-  const baseKey = `base:base:${s.libraryScope}`;
+  }, [s.baseView, s.sortMode, s.l1View, s.l1Sort, s.r1View, s.r1Sort, t]);
+  const baseKey = views.find((v) => v.key.startsWith("base:"))!.key;
   const [viewKey, setViewKey] = useState<string>(() => lastViewKey ?? baseKey);
   const view = views.find((v) => v.key === viewKey) ?? views.find((v) => v.key === baseKey) ?? views[0];
   useEffect(() => {

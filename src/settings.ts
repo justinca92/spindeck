@@ -7,14 +7,13 @@ import { getLang } from "./locale";
 
 export type SortMode = "recent" | "alpha";
 export type PadSide = "left" | "right";
-export type LibraryScope = "installed" | "all";
 
 export interface WheelSettings {
   homeEnabled: boolean;   // replace the Steam home screen with the wheel
   ownerText: string;      // bottom-left title, e.g. "j1의 스팀덱"
   subtitleText: string;   // optional second line
   accentColor: string;    // CSS color for highlights
-  libraryScope: LibraryScope; // installed games only, or the whole library
+  baseView: string;           // main wheel: "base:installed" / "base:all" or a Steam collection id
   sortMode: SortMode;         // recently played, or A–Z
   // L1 / R1 on the wheel: "" (nothing), "base:all" / "base:installed", or a Steam collection id; each with its own sort.
   l1View: string;
@@ -44,7 +43,7 @@ export const DEFAULTS: WheelSettings = {
   ownerText: "나의 스팀덱",
   subtitleText: "",
   accentColor: "#66c0f4",
-  libraryScope: "installed",
+  baseView: "base:installed",
   sortMode: "recent",
   l1View: "favorite",
   l1Sort: "recent",
@@ -85,6 +84,9 @@ export async function initSettings() {
     if (saved && "installedOnly" in saved && !("libraryScope" in saved)) {
       merged.libraryScope = (saved as any).installedOnly ? "installed" : "all";
     }
+    // 1.3.0: "Show" became a full view pick (library or collection).
+    if (saved && !("baseView" in saved) && merged.libraryScope) merged.baseView = `base:${merged.libraryScope}`;
+    delete merged.libraryScope;
     delete merged.installedOnly;
     delete merged.clockwiseIsNext; // option removed in 0.2.3
     // v2 (0.4.2): the raw controller API is the only path that sees the LEFT

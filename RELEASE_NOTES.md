@@ -2,7 +2,7 @@
 
 ## 1.3.0
 
-- **L1 / R1 collections.** Assign a Steam collection to L1 and to R1 in the panel (★ Favorites on L1 by default), each with its own sort. The other button brings you back.
+- **Pick what each wheel shows.** The main wheel, L1 and R1 can each show Installed games, the whole library, ★ Favorites or any Steam collection, each with its own sort (L1 = ★ Favorites by default).
 - **Alphabet popup** is now a softer rounded square, and only shows in the whole library.
 - **The wheel remembers your spot.** Coming back from a game page, you're on the same game again, in every view.
 

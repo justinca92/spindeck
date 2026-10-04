@@ -3,7 +3,7 @@
 ## 1.3.0 — 2026-10-03
 
 ### Added
-- **L1 / R1 collections.** Three views in a row: [L1] — base view (Installed games by default) — [R1]. In the panel, L1 and R1 each get one view (None, Installed games, Whole library, ★ Favorites or any Steam collection) and their own sort; L1 defaults to ★ Favorites, R1 to none. L1/R1 step one view left/right; a strip at the top shows where you are for a moment. Collections show all their games, installed or not; the roulette spins within the current view.
+- **Pick what each wheel shows.** Three views in a row: [L1] — main — [R1]. In the panel, "Show" picks the main view (Installed games by default, Whole library, ★ Favorites or any Steam collection; it can't be empty), and L1 and R1 each pick one view too (or None), each with its own sort. L1 defaults to ★ Favorites, R1 to None. L1/R1 step one view left/right; a strip at the top shows where you are for a moment. Collections show all their games, installed or not; the roulette spins within the current view. Saved "Installed / Whole library" choices carry over.
 - **Alphabet popup:** whole library only (A–Z), and a small, see-through borderless rounded square whose edge fades into the art.
 
 ### Fixed
