@@ -84,7 +84,7 @@ export async function initSettings() {
     if (saved && "installedOnly" in saved && !("libraryScope" in saved)) {
       merged.libraryScope = (saved as any).installedOnly ? "installed" : "all";
     }
-    // 1.3.0: "Show" became a full view pick (library or collection).
+    // 1.2.0: "Show" became a full view pick (library or collection).
     if (saved && !("baseView" in saved) && merged.libraryScope) merged.baseView = `base:${merged.libraryScope}`;
     delete merged.libraryScope;
     delete merged.installedOnly;
@@ -125,7 +125,7 @@ export async function initSettings() {
       merged.settingsVersion = 6;
       needsSave = true;
     }
-    delete merged.shelfCollections; // 1.3.0 pre-release builds only
+    delete merged.shelfCollections; // 1.2.0 pre-release builds only
     delete merged.favoritesOnL1;
     delete merged.hapticMode;
     delete merged.hideRecentShelf; // always on since 0.9.4 (toggle removed)
