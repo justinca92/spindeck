@@ -1,13 +1,22 @@
 # Release notes
 
-## 1.3.0
+## 1.2.0
 
-- **Pick what each wheel shows.** The main wheel, L1 and R1 can each show Installed games, the whole library, ★ Favorites or any Steam collection, each with its own sort (L1 = ★ Favorites by default).
-- **Alphabet popup** is now a softer rounded square, and only shows in the whole library.
-- **The wheel remembers your spot.** Coming back from a game page, you're on the same game again, in every view.
+### What's new in 1.2.0
+- 🎛️ **Pick what each wheel shows.** The main wheel, L1 and R1 can each show Installed games, your whole library, ★ Favorites or any of your Steam collections, each with its own sort. Set them in the panel's Library section (main wheel: Installed games, L1: ★ Favorites by default).
+- ⏮️ **L1 / R1 on the wheel** jump to those views and back, with a quick strip at the top showing where you are.
+- 📍 **The wheel remembers your spot.** Come back from a game page and you're on the same game again, in every view.
+- 🔤 **Alphabet popup** is now a small, see-through square, and only shows while browsing the whole library A–Z.
 
-Install: Decky → Developer → Install Plugin from URL →
-https://github.com/justinca92/spindeck/releases/download/v1.3.0/spindeck-1.3.0.zip
+**Install:** Decky → Developer → Install Plugin from URL →
+https://github.com/justinca92/spindeck/releases/download/v1.2.0/spindeck-1.2.0.zip
+
+New here? See the [README](https://github.com/justinca92/spindeck#readme) for the full feature list.
+
+---
+Tested on Steam Deck OLED in game mode. Bugs and ideas: [Issues](https://github.com/justinca92/spindeck/issues)
+Free and open source. If you enjoy it: [Ko-fi](https://ko-fi.com/jhw0806) ☕
+Built with AI assistance (Claude); designed, tested and tuned on-device by justinca92.
 
 ## 1.1.2
 

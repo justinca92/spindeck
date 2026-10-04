@@ -2485,7 +2485,7 @@ function WheelHome({ original }) {
 // src/links.ts
 var KOFI_URL = "https://ko-fi.com/jhw0806";
 var REPO_URL = "https://github.com/justinca92/spindeck";
-var PLUGIN_VERSION = "1.3.0";
+var PLUGIN_VERSION = "1.2.0";
 
 // src/index.tsx
 var ROUTE = "/spindeck";
