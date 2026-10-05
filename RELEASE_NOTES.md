@@ -1,5 +1,30 @@
 # Release notes
 
+## 1.3.0
+
+### What's new in 1.3.0
+
+**New**
+- 🎮 **Haptics only when you're on the Deck.** If you play with another controller (Deck docked to a TV with a DualSense, Xbox pad…), the Deck itself no longer vibrates; pick the Deck back up and it does again. On by default, can be turned off in the panel (Controls).
+
+**Changed**
+- 🧈 **Smoother wheel.** Spinning does much less redraw work per frame, so it should feel lighter, especially with big capsule art.
+- ⚡ **Faster art after a reboot.** Game art now comes from Steam's own library cache on the Deck first, instead of being downloaded again.
+
+**Fixed**
+- 🕹️ **Controls went to the hidden Steam home** after coming back from a running game with the STEAM button: the wheel was shown, but ◀/▶ moved things you couldn't see ([#1](https://github.com/justinca92/spindeck/issues/1), thanks @Shenishio).
+- 🔁 **◀/▶ and the left stick didn't turn the wheel right after a reboot** (only a sound) until you went up or down and back.
+
+**Install:** Decky → Developer → Install Plugin from URL →
+https://github.com/justinca92/spindeck/releases/download/v1.3.0/spindeck-1.3.0.zip
+
+New here? See the [README](https://github.com/justinca92/spindeck#readme) for the full feature list.
+
+---
+Tested on Steam Deck OLED in game mode. Bugs and ideas: [Issues](https://github.com/justinca92/spindeck/issues)
+Free and open source. If you enjoy it: [Ko-fi](https://ko-fi.com/jhw0806) ☕
+Built with AI assistance (Claude); designed, tested and tuned on-device by justinca92.
+
 ## 1.2.0
 
 ### What's new in 1.2.0

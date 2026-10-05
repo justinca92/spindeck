@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.3.0 — unreleased
+## 1.3.0 — 2026-10-04
 
 ### Added
 - **Haptics only on the Deck's own controls** (panel → Controls, on by default). Steam reports which controller every button press comes from (`RegisterForControllerInputMessages`: controller index, button, pressed; on device the Deck was 0, a DualSense 15). If the latest input isn't from the Deck, the Deck doesn't vibrate. The Deck's index is also learned from its trackpad messages. Without any input info yet, it falls back to the screen (not 16:10 = docked). Roulette and the L1/R1 rumble start 30 ms after the button, once the controller is known.

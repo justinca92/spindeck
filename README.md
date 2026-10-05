@@ -11,7 +11,7 @@
 ## Features
 
 - **Wheel home screen.** Your library sits on a dial on the screen edge, with the selected game's hero art on the other side.
-- **Trackpad circle rotation.** Rub the trackpad in a circle to spin the wheel. It clicks with Steam's own haptic tick on that pad, with adjustable strength.
+- **Trackpad circle rotation.** Rub the trackpad in a circle to spin the wheel. It clicks with Steam's own haptic tick on that pad, with adjustable strength. Playing with another controller? The Deck stays quiet.
 - **Main wheel + L1 / R1.** The main wheel, L1 and R1 can each show Installed games, the whole library, ★ Favorites or any Steam collection, each with its own sort. Each view remembers its game.
 - **Alphabet popup.** In A–Z sort of the whole library, a big letter shows when the first letter changes and while you spin fast.
 - **Today's game.** Press Ⓨ to spin a roulette that lands on a random game. Press Ⓨ again to stop it on the spot.
