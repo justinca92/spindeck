@@ -71,3 +71,5 @@ export const VIEW_ANIM_IN_MS = 300;
 export const VIEW_ANIM_RUMBLE_MS = 700;
 /** Wait this long after a button before haptics, so Steam's input message (which controller) has arrived. */
 export const INPUT_SETTLE_MS = 30;
+/** When the wheel screen first appears, put gamepad focus on the wheel at these moments (Steam settles focus late at boot). */
+export const BOOT_FOCUS_CLAIMS_MS = [150, 600, 1500, 3000];

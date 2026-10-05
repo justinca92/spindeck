@@ -8,6 +8,7 @@
 
 ### Fixed
 - **After a reboot, D-pad / left stick left-right played the sound but the wheel didn't turn** until you went to search or What's New and back. Right after boot Steam's window may not deliver animation frames yet; the wheel animation now falls back to a timer when a frame doesn't arrive within 40 ms.
+- **…and the real cause: gamepad focus stayed on Steam's own home.** At boot Steam's home is shown until Spindeck's settings load; Steam focuses it and keeps that focus after the wheel takes over, so ◀/▶ moved focus around a hidden row (Steam's sound, no wheel) until ▲/▼ moved it. The wheel screen now claims focus when it first appears (at 0.15 / 0.6 / 1.5 / 3 s, only if focus isn't already on the wheel and you're still on the wheel screen) and when Steam's window comes to the front.
 
 ### Changed
 - **Game art from Steam's local library cache first.** The capsule and hero URLs now try appStore's local (cached) image URLs before the Steam CDN, so after a reboot the art comes from disk instead of the network; images decode asynchronously. The available appStore image methods are logged once (debug) for checking on device.

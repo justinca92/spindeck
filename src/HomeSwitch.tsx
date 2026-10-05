@@ -16,6 +16,7 @@ import {
   SCROLL_SETTLE_MS,
   SLIDE_MS,
   SLIDE_SETTLED_MS,
+  BOOT_FOCUS_CLAIMS_MS,
   SWITCH_COOLDOWN_MS,
   UP_FOCUS_WINDOW_MS,
 } from "./constants";
@@ -334,6 +335,27 @@ function WheelHome({ original }: { original: ReactNode }) {
       }
     }, SLIDE_SETTLED_MS);
   };
+  // On boot Steam focuses its own home (shown until our settings load) and
+  // keeps that focus after the wheel replaces it: ◀/▶ then moved focus around
+  // a hidden row (Steam's sound, no wheel) until ▲/▼ moved it. So when the
+  // wheel screen first appears, take focus — a few times while Steam settles,
+  // and only if it isn't already on the wheel and the user is still there.
+  useEffect(() => {
+    const claim = (why: string) => {
+      if (screenRef.current !== "wheel") return;
+      const box = wheelBox.current;
+      const active = box?.ownerDocument?.activeElement as HTMLElement | null;
+      if (box && active && box.contains(active)) return;
+      debug("focus", "claiming the wheel", why, { active: active?.tagName, cls: active?.className?.toString().slice(0, 60) });
+      focusFirstIn(box);
+    };
+    for (const ms of BOOT_FOCUS_CLAIMS_MS) later(() => claim(`mount+${ms}ms`), ms);
+    // Steam's window coming to the front (boot, back from a game) can move focus too.
+    const view: any = root.current?.ownerDocument?.defaultView;
+    const onWinFocus = () => later(() => claim("window focus"), 120);
+    view?.addEventListener?.("focus", onWinFocus);
+    return () => view?.removeEventListener?.("focus", onWinFocus);
+  }, []);
   const toSections = () => switchTo("sections");
   const toWheel = () => switchTo("wheel");
 
