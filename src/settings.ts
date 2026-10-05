@@ -21,7 +21,7 @@ export interface WheelSettings {
   r1View: string;
   r1Sort: SortMode;
   viewAnim: boolean;          // L1/R1 swap animation (revolver)
-  dockedNoHaptics: boolean;   // no Deck haptics while docked (external display)
+  deckOnlyHaptics: boolean;   // Deck haptics only while playing on the Deck's own controls
   capsuleScale: number;       // capsule art size multiplier (1 = 80×120)
   textScale: number;          // game title size multiplier
   wheelSizePct: number;       // wheel radius as % of screen width
@@ -52,7 +52,7 @@ export const DEFAULTS: WheelSettings = {
   r1View: "",
   r1Sort: "recent",
   viewAnim: true,
-  dockedNoHaptics: true,
+  deckOnlyHaptics: true,
   capsuleScale: 1.2,
   textScale: 0.7,
   wheelSizePct: 32,
@@ -129,6 +129,7 @@ export async function initSettings() {
       merged.settingsVersion = 6;
       needsSave = true;
     }
+    delete merged.dockedNoHaptics; // 1.3.0 test builds only
     delete merged.shelfCollections; // 1.2.0 pre-release builds only
     delete merged.favoritesOnL1;
     delete merged.hapticMode;

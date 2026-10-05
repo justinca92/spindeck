@@ -7,6 +7,7 @@ import { subscribeCursorWheel, subscribeKeyboardAnalogWheel, subscribeScrollWhee
 import { getSettings, settingsLoaded, updateSettings, useSettings } from "./settings";
 import { crossedMilestone } from "./odometer";
 import { onWheelReset } from "./reset";
+import { deckInHands, watchControllers } from "./controllers";
 import { playUiSound } from "./sound";
 import { openNativeGameMenu } from "./nativeMenu";
 import { rumbleBoth, wheelTick } from "./haptics";
@@ -53,7 +54,8 @@ function FallbackImg({ srcs, style, className }: { srcs: string[]; style?: CSSPr
   const key = srcs.join("|");
   useEffect(() => setI(0), [key]);
   if (i >= srcs.length) return <div className={className} style={{ ...style, background: "#1b2838" }} />;
-  return <img className={className} style={style} src={srcs[i]} onError={() => setI(i + 1)} />;
+  // decoding="async": decode off the main thread so a new capsule doesn't stall a frame.
+  return <img className={className} style={style} src={srcs[i]} decoding="async" onError={() => setI(i + 1)} />;
 }
 
 /** Warm the browser cache for capsules about to come into view. */
@@ -414,13 +416,21 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   useEffect(() => () => motion.stop(), [motion]);
 
   // Latest values for callbacks registered once.
-  const live = useRef({ sound: s.soundEnabled, haptic: s.hapticEnabled, pad: s.rotatePad, circleOn: false, hapticLevel: s.hapticLevel, stepDegrees: s.stepDegrees, hapticDegrees: s.hapticDegrees });
+  const live = useRef({ sound: s.soundEnabled, haptic: s.hapticEnabled, pad: s.rotatePad, circleOn: false, hapticLevel: s.hapticLevel, stepDegrees: s.stepDegrees, hapticDegrees: s.hapticDegrees, deckOnly: s.deckOnlyHaptics });
+  live.current.deckOnly = s.deckOnlyHaptics;
   live.current.hapticLevel = s.hapticLevel;
   live.current.sound = s.soundEnabled;
   live.current.haptic = s.hapticEnabled;
-  // Deck haptics off while docked (external display), if the panel says so.
-  const dockMute = useRef(false);
-  const hapticOk = () => live.current.haptic && !dockMute.current;
+  // Deck haptics only while the Deck itself is in the user's hands (panel
+  // toggle): off when input comes from another controller. If Steam gives no
+  // controller info, fall back to the screen: not 16:10 = docked to a display.
+  const docked = useRef(false);
+  const hapticOk = () => {
+    if (!live.current.haptic) return false;
+    if (!live.current.deckOnly) return true;
+    const inHands = deckInHands();
+    return inHands ?? !docked.current;
+  };
   live.current.pad = s.rotatePad;
   const hapticMuteUntil = useRef(0);
   const spinningRef = useRef(false);
@@ -588,26 +598,10 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   const [size, setSize] = useState({ w: 1280, h: 800 });
   // The Deck's own screen is 1280×800 (16:10) in game mode; anything else means
   // an external display, i.e. docked.
-  const docked = Math.abs(size.w / Math.max(1, size.h) - 1.6) > 0.04 || size.w > 1400;
-  dockMute.current = docked && s.dockedNoHaptics;
-  useEffect(() => debug("dock", { w: size.w, h: size.h, docked }), [docked]);
-  // Diagnostics for controller support (e.g. Steam Controller 2): log the
-  // connected controllers whenever the list changes. Read-only.
-  useEffect(() => {
-    let reg: any;
-    try {
-      reg = (globalThis as any).SteamClient?.Input?.RegisterForControllerListChanges?.((list: any) => debug("controllers", list));
-    } catch {
-      /* not available */
-    }
-    return () => {
-      try {
-        reg?.unregister?.();
-      } catch {
-        /* ignore */
-      }
-    };
-  }, []);
+  const onExternal = Math.abs(size.w / Math.max(1, size.h) - 1.6) > 0.04 || size.w > 1400;
+  docked.current = onExternal;
+  useEffect(() => debug("dock", { w: size.w, h: size.h, external: onExternal }), [onExternal]);
+  useEffect(() => watchControllers(), []);
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;

@@ -3,13 +3,14 @@
 ## 1.3.0 — unreleased
 
 ### Added
-- **No Deck haptics while docked** (panel → Controls, on by default). Docked = the wheel isn't rendering at the Deck's own 16:10 1280×800 (i.e. an external display).
+- **Haptics only on the Deck's own controls** (panel → Controls, on by default). Spindeck watches Steam's controller list and where input comes from: if another controller is connected and in use (Deck docked to a TV with a pad, a Steam Controller…), the Deck doesn't vibrate. Without controller info from Steam it falls back to the screen: not the Deck's 16:10 = docked.
 - Diagnostics in the console (debug level): each new analog input (controller index + type) and the connected controller list, to work out left-stick input and Steam Controller 2 support.
 
 ### Fixed
 - **After a reboot, D-pad / left stick left-right played the sound but the wheel didn't turn** until you went to search or What's New and back. Right after boot Steam's window may not deliver animation frames yet; the wheel animation now falls back to a timer when a frame doesn't arrive within 40 ms.
 
 ### Changed
+- **Game art from Steam's local library cache first.** The capsule and hero URLs now try appStore's local (cached) image URLs before the Steam CDN, so after a reboot the art comes from disk instead of the network; images decode asynchronously. The available appStore image methods are logged once (debug) for checking on device.
 - **Smoother wheel.** Capsule darkening is a black overlay's opacity instead of `filter: brightness()` (which repainted every capsule image every frame), each capsule is its own compositor layer (`will-change: transform`), and the blurred backdrop is drawn at a quarter size and scaled up (~16× less blurring work).
 
 ## 1.2.0 — 2026-10-03

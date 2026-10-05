@@ -43,7 +43,7 @@ var DEFAULTS = {
   r1View: "",
   r1Sort: "recent",
   viewAnim: true,
-  dockedNoHaptics: true,
+  deckOnlyHaptics: true,
   capsuleScale: 1.2,
   textScale: 0.7,
   wheelSizePct: 32,
@@ -106,6 +106,7 @@ async function initSettings() {
       merged.settingsVersion = 6;
       needsSave = true;
     }
+    delete merged.dockedNoHaptics;
     delete merged.shelfCollections;
     delete merged.favoritesOnL1;
     delete merged.hapticMode;
@@ -227,8 +228,8 @@ var ko = {
   alpha: "알파벳순 (A–Z)",
   byPlaytime: "플레이 시간순",
   slotNone: "없음",
-  dockedNoHaptics: "도킹 중에는 덱 진동 끄기",
-  dockedNoHapticsDesc: "TV나 모니터에 연결해 쓸 때(화면이 16:10이 아닐 때) 스팀덱 본체 진동을 꺼요.",
+  deckOnlyHaptics: "덱으로 조작할 때만 진동",
+  deckOnlyHapticsDesc: "다른 컨트롤러로 조작하면(TV에 연결해 패드로 할 때 등) 스팀덱 본체는 진동하지 않아요.",
   viewAnim: "L1/R1 전환 애니메이션",
   viewAnimDesc: "휠이 리볼버 실린더처럼 돌아 나가고 새 휠이 철컥 맞물리며, 양쪽 트랙패드가 부르르 떨려요. 끄면 애니메이션과 이 진동이 함께 꺼져요.",
   shelfCount: (n) => `게임 ${n}개`,
@@ -293,8 +294,8 @@ var en = {
   alpha: "Alphabetical (A–Z)",
   byPlaytime: "Most played",
   slotNone: "None",
-  dockedNoHaptics: "No Deck haptics while docked",
-  dockedNoHapticsDesc: "When playing on a TV or monitor (screen isn't 16:10), the Steam Deck itself doesn't vibrate.",
+  deckOnlyHaptics: "Haptics only on the Deck's own controls",
+  deckOnlyHapticsDesc: "While you play with another controller (e.g. docked to a TV), the Steam Deck itself doesn't vibrate.",
   viewAnim: "L1/R1 switch animation",
   viewAnimDesc: "The wheel turns out like a revolver cylinder and the next one clicks into place, with a rumble on both trackpads. Turning this off also turns off that rumble.",
   shelfCount: (n) => `${n} games`,
@@ -353,19 +354,36 @@ function debug(area, ...args) {
 var APP_TYPE_GAME = 1;
 var APP_TYPE_SHORTCUT = 1073741824;
 var CDN = "https://cdn.cloudflare.steamstatic.com/steam/apps";
+var LOCAL_METHODS = {
+  hero: ["GetCustomHeroImageURLs", "GetCachedHeroImageURLs", "GetHeroImageURLs"],
+  capsule: ["GetCustomVerticalCapsuleURLs", "GetCachedVerticalImageURLs", "GetVerticalCapsuleURLs"]
+};
+var loggedArtApi = false;
+function logArtApi() {
+  if (loggedArtApi)
+    return;
+  loggedArtApi = true;
+  try {
+    const names = new Set;
+    for (let o = appStore;o && o !== Object.prototype; o = Object.getPrototypeOf(o))
+      for (const n of Object.getOwnPropertyNames(o))
+        if (/URL|Image|Capsule|Hero/i.test(n))
+          names.add(n);
+    debug("art", "appStore image methods", [...names].sort());
+  } catch {}
+}
 function urls(app, kind) {
   const out = [];
-  try {
-    if (kind === "hero") {
-      const custom = appStore?.GetCustomHeroImageURLs?.(app);
-      if (Array.isArray(custom))
-        out.push(...custom);
-    } else {
-      const custom = appStore?.GetCustomVerticalCapsuleURLs?.(app);
-      if (Array.isArray(custom))
-        out.push(...custom);
-    }
-  } catch {}
+  logArtApi();
+  for (const m of LOCAL_METHODS[kind]) {
+    try {
+      const r = appStore?.[m]?.(app);
+      const list = Array.isArray(r) ? r : typeof r === "string" ? [r] : [];
+      for (const u of list)
+        if (typeof u === "string" && u && !out.includes(u))
+          out.push(u);
+    } catch {}
+  }
   if (app.app_type !== APP_TYPE_SHORTCUT) {
     out.push(kind === "hero" ? `${CDN}/${app.appid}/library_hero.jpg` : `${CDN}/${app.appid}/library_600x900.jpg`);
   }
@@ -477,6 +495,96 @@ function teardownAll() {
   }
 }
 
+// src/controllers.ts
+var DECK_PRODUCT_ID = 4613;
+var VALVE_VENDOR_ID = 10462;
+var known = false;
+var deck = new Set;
+var others = 0;
+var lastIdx = null;
+function isDeck(c) {
+  const name = String(c?.strName ?? c?.name ?? "");
+  if (/steam\s*deck|neptune|jupiter|galileo/i.test(name))
+    return true;
+  const vid = Number(c?.unVendorID ?? c?.vendorId ?? -1);
+  const pid = Number(c?.unProductID ?? c?.productId ?? -1);
+  return vid === VALVE_VENDOR_ID && pid === DECK_PRODUCT_ID;
+}
+function indexOf(c) {
+  const i = c?.nControllerIndex ?? c?.unControllerIndex ?? c?.controllerIndex ?? c?.nIndex;
+  return typeof i === "number" ? i : null;
+}
+function onList(list) {
+  try {
+    const arr = Array.isArray(list) ? list : Array.isArray(list?.controllers) ? list.controllers : [];
+    deck.clear();
+    others = 0;
+    for (const c of arr) {
+      const i = indexOf(c);
+      if (isDeck(c)) {
+        if (i !== null)
+          deck.add(i);
+      } else
+        others++;
+    }
+    known = arr.length > 0;
+    debug("controllers", { deck: [...deck], others, list: arr });
+  } catch (e) {
+    debug("controllers", "list parse failed", e);
+  }
+}
+function noteInput(idx) {
+  if (typeof idx === "number" && idx >= 0)
+    lastIdx = idx;
+}
+function onInput(...args) {
+  const a = args[0];
+  if (Array.isArray(a)) {
+    for (const m of a)
+      if (m?.bS !== false)
+        noteInput(m?.nController ?? m?.controllerIndex);
+  } else
+    noteInput(a);
+}
+var started = false;
+function watchControllers() {
+  if (started)
+    return;
+  started = true;
+  const regs = [];
+  try {
+    regs.push(SteamClient?.Input?.RegisterForControllerListChanges?.(onList));
+  } catch (e) {
+    debug("controllers", "list watch unavailable", e);
+  }
+  try {
+    regs.push(SteamClient?.Input?.RegisterForControllerInputMessages?.(onInput));
+  } catch (e) {
+    debug("controllers", "input watch unavailable", e);
+  }
+  onTeardown(() => {
+    for (const r of regs) {
+      try {
+        r?.unregister?.();
+      } catch {}
+    }
+    started = false;
+    known = false;
+    deck.clear();
+    others = 0;
+    lastIdx = null;
+  });
+}
+function deckInHands() {
+  if (!known)
+    return null;
+  if (others === 0)
+    return true;
+  if (lastIdx !== null && deck.size)
+    return deck.has(lastIdx);
+  return false;
+}
+
 // src/padInput.ts
 var wrap = (d) => {
   if (d > Math.PI)
@@ -522,6 +630,7 @@ function subscribeKeyboardAnalogWheel(opts) {
   try {
     const seen = new Set;
     reg = Input.RegisterForControllerAnalogInputMessages((idx, type, _p, x, y) => {
+      noteInput(idx);
       const k = `${idx}:${type}`;
       if (!seen.has(k)) {
         seen.add(k);
@@ -1124,6 +1233,7 @@ function FallbackImg({ srcs, style, className }) {
     className,
     style,
     src: srcs[i],
+    decoding: "async",
     onError: () => setI(i + 1)
   });
 }
@@ -1395,12 +1505,20 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   const rootRef = useRef(null);
   const motion = useMemo(() => new WheelMotion, []);
   useEffect(() => () => motion.stop(), [motion]);
-  const live = useRef({ sound: s.soundEnabled, haptic: s.hapticEnabled, pad: s.rotatePad, circleOn: false, hapticLevel: s.hapticLevel, stepDegrees: s.stepDegrees, hapticDegrees: s.hapticDegrees });
+  const live = useRef({ sound: s.soundEnabled, haptic: s.hapticEnabled, pad: s.rotatePad, circleOn: false, hapticLevel: s.hapticLevel, stepDegrees: s.stepDegrees, hapticDegrees: s.hapticDegrees, deckOnly: s.deckOnlyHaptics });
+  live.current.deckOnly = s.deckOnlyHaptics;
   live.current.hapticLevel = s.hapticLevel;
   live.current.sound = s.soundEnabled;
   live.current.haptic = s.hapticEnabled;
-  const dockMute = useRef(false);
-  const hapticOk = () => live.current.haptic && !dockMute.current;
+  const docked = useRef(false);
+  const hapticOk = () => {
+    if (!live.current.haptic)
+      return false;
+    if (!live.current.deckOnly)
+      return true;
+    const inHands = deckInHands();
+    return inHands ?? !docked.current;
+  };
   live.current.pad = s.rotatePad;
   const hapticMuteUntil = useRef(0);
   const spinningRef = useRef(false);
@@ -1548,20 +1666,10 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     tick();
   };
   const [size, setSize] = useState({ w: 1280, h: 800 });
-  const docked = Math.abs(size.w / Math.max(1, size.h) - 1.6) > 0.04 || size.w > 1400;
-  dockMute.current = docked && s.dockedNoHaptics;
-  useEffect(() => debug("dock", { w: size.w, h: size.h, docked }), [docked]);
-  useEffect(() => {
-    let reg;
-    try {
-      reg = globalThis.SteamClient?.Input?.RegisterForControllerListChanges?.((list) => debug("controllers", list));
-    } catch {}
-    return () => {
-      try {
-        reg?.unregister?.();
-      } catch {}
-    };
-  }, []);
+  const onExternal = Math.abs(size.w / Math.max(1, size.h) - 1.6) > 0.04 || size.w > 1400;
+  docked.current = onExternal;
+  useEffect(() => debug("dock", { w: size.w, h: size.h, external: onExternal }), [onExternal]);
+  useEffect(() => watchControllers(), []);
   useEffect(() => {
     const el = rootRef.current;
     if (!el)
@@ -2925,10 +3033,10 @@ function QuickAccessPanel() {
       wheelTick(s.rotatePad, false, v);
     }
   })), s.hapticEnabled && /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(ToggleField, {
-    label: t.dockedNoHaptics,
-    description: t.dockedNoHapticsDesc,
-    checked: s.dockedNoHaptics,
-    onChange: (v) => updateSettings({ dockedNoHaptics: v })
+    label: t.deckOnlyHaptics,
+    description: t.deckOnlyHapticsDesc,
+    checked: s.deckOnlyHaptics,
+    onChange: (v) => updateSettings({ deckOnlyHaptics: v })
   })), /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(ToggleField, {
     label: t.sound,
     description: t.soundDesc,

@@ -350,10 +350,10 @@ function QuickAccessPanel() {
         {s.hapticEnabled && (
           <PanelSectionRow>
             <ToggleField
-              label={t.dockedNoHaptics}
-              description={t.dockedNoHapticsDesc}
-              checked={s.dockedNoHaptics}
-              onChange={(v) => updateSettings({ dockedNoHaptics: v })}
+              label={t.deckOnlyHaptics}
+              description={t.deckOnlyHapticsDesc}
+              checked={s.deckOnlyHaptics}
+              onChange={(v) => updateSettings({ deckOnlyHaptics: v })}
             />
           </PanelSectionRow>
         )}

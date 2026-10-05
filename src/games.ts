@@ -1,4 +1,5 @@
 import { Navigation } from "@decky/ui";
+import { debug } from "./log";
 // Reads the library from Steam's internal stores. These globals are not a
 // public API; field names can shift between client updates.
 
@@ -22,18 +23,40 @@ const APP_TYPE_SHORTCUT = 1073741824;
 
 const CDN = "https://cdn.cloudflare.steamstatic.com/steam/apps";
 
-function urls(app: any, kind: "hero" | "capsule"): string[] {
-  const out: string[] = [];
+// Steam keeps library art on disk (its library cache) and serves it locally;
+// these appStore methods return those local URLs. Tried in order, before the
+// CDN, so after a reboot the art comes from disk instead of the network.
+// Names vary by client: missing ones are skipped. (Not public API.)
+const LOCAL_METHODS = {
+  hero: ["GetCustomHeroImageURLs", "GetCachedHeroImageURLs", "GetHeroImageURLs"],
+  capsule: ["GetCustomVerticalCapsuleURLs", "GetCachedVerticalImageURLs", "GetVerticalCapsuleURLs"],
+} as const;
+
+let loggedArtApi = false;
+function logArtApi() {
+  if (loggedArtApi) return;
+  loggedArtApi = true;
   try {
-    if (kind === "hero") {
-      const custom = appStore?.GetCustomHeroImageURLs?.(app);
-      if (Array.isArray(custom)) out.push(...custom);
-    } else {
-      const custom = appStore?.GetCustomVerticalCapsuleURLs?.(app);
-      if (Array.isArray(custom)) out.push(...custom);
-    }
+    const names = new Set<string>();
+    for (let o = appStore; o && o !== Object.prototype; o = Object.getPrototypeOf(o))
+      for (const n of Object.getOwnPropertyNames(o)) if (/URL|Image|Capsule|Hero/i.test(n)) names.add(n);
+    debug("art", "appStore image methods", [...names].sort());
   } catch {
     /* ignore */
+  }
+}
+
+function urls(app: any, kind: "hero" | "capsule"): string[] {
+  const out: string[] = [];
+  logArtApi();
+  for (const m of LOCAL_METHODS[kind]) {
+    try {
+      const r = appStore?.[m]?.(app);
+      const list = Array.isArray(r) ? r : typeof r === "string" ? [r] : [];
+      for (const u of list) if (typeof u === "string" && u && !out.includes(u)) out.push(u);
+    } catch {
+      /* ignore */
+    }
   }
   if (app.app_type !== APP_TYPE_SHORTCUT) {
     out.push(
