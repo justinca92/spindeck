@@ -73,3 +73,5 @@ export const VIEW_ANIM_RUMBLE_MS = 700;
 export const INPUT_SETTLE_MS = 30;
 /** When the wheel screen first appears, put gamepad focus on the wheel at these moments (Steam settles focus late at boot). */
 export const BOOT_FOCUS_CLAIMS_MS = [150, 600, 1500, 3000];
+/** While the wheel screen is shown, check this often that gamepad focus isn't lost or stuck on Steam's hidden home. */
+export const FOCUS_WATCH_MS = 1000;

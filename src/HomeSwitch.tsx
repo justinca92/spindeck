@@ -17,6 +17,7 @@ import {
   SLIDE_MS,
   SLIDE_SETTLED_MS,
   BOOT_FOCUS_CLAIMS_MS,
+  FOCUS_WATCH_MS,
   SWITCH_COOLDOWN_MS,
   UP_FOCUS_WINDOW_MS,
 } from "./constants";
@@ -335,26 +336,38 @@ function WheelHome({ original }: { original: ReactNode }) {
       }
     }, SLIDE_SETTLED_MS);
   };
-  // On boot Steam focuses its own home (shown until our settings load) and
-  // keeps that focus after the wheel replaces it: ◀/▶ then moved focus around
-  // a hidden row (Steam's sound, no wheel) until ▲/▼ moved it. So when the
-  // wheel screen first appears, take focus — a few times while Steam settles,
-  // and only if it isn't already on the wheel and the user is still there.
+  // Gamepad focus can end up on Steam's own home while the wheel is shown —
+  // at boot (Steam's home is shown until our settings load, and its focus
+  // stays) and when coming back from a running game with the STEAM button
+  // (GitHub #1): ◀/▶ then moved focus around a hidden row (Steam's sound, no
+  // wheel). So while the wheel screen is up, focus that is lost (on <body>) or
+  // inside the hidden home is brought back to the wheel. Focus anywhere else —
+  // a popup like "Exit game?", the Steam menu, Quick Access, the search box —
+  // is never touched.
   useEffect(() => {
     const claim = (why: string) => {
       if (screenRef.current !== "wheel") return;
       const box = wheelBox.current;
-      const active = box?.ownerDocument?.activeElement as HTMLElement | null;
-      if (box && active && box.contains(active)) return;
-      debug("focus", "claiming the wheel", why, { active: active?.tagName, cls: active?.className?.toString().slice(0, 60) });
+      const doc = box?.ownerDocument;
+      if (!box || !doc) return;
+      if (doc.visibilityState === "hidden" || !doc.hasFocus?.()) return; // a game or overlay is in front
+      const active = doc.activeElement as HTMLElement | null;
+      if (active && box.contains(active)) return; // already on the wheel
+      const lost = !active || active === doc.body || !active.isConnected;
+      const inHiddenHome = !!active && !!sections.current?.contains(active);
+      if (!lost && !inHiddenHome) return; // somewhere legit (dialog, menu, search…)
+      debug("focus", "claiming the wheel", why, { lost, inHiddenHome, cls: active?.className?.toString().slice(0, 60) });
       focusFirstIn(box);
     };
     for (const ms of BOOT_FOCUS_CLAIMS_MS) later(() => claim(`mount+${ms}ms`), ms);
-    // Steam's window coming to the front (boot, back from a game) can move focus too.
+    const watch = setInterval(() => claim("watch"), FOCUS_WATCH_MS);
     const view: any = root.current?.ownerDocument?.defaultView;
-    const onWinFocus = () => later(() => claim("window focus"), 120);
+    const onWinFocus = () => later(() => claim("window focus"), 150);
     view?.addEventListener?.("focus", onWinFocus);
-    return () => view?.removeEventListener?.("focus", onWinFocus);
+    return () => {
+      clearInterval(watch);
+      view?.removeEventListener?.("focus", onWinFocus);
+    };
   }, []);
   const toSections = () => switchTo("sections");
   const toWheel = () => switchTo("wheel");

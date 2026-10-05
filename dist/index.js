@@ -1268,6 +1268,7 @@ var VIEW_ANIM_IN_MS = 300;
 var VIEW_ANIM_RUMBLE_MS = 700;
 var INPUT_SETTLE_MS = 30;
 var BOOT_FOCUS_CLAIMS_MS = [150, 600, 1500, 3000];
+var FOCUS_WATCH_MS = 1000;
 
 // src/WheelPage.tsx
 var BASE_CAPSULE_W = 80;
@@ -2600,18 +2601,31 @@ function WheelHome({ original }) {
       if (screenRef.current !== "wheel")
         return;
       const box = wheelBox.current;
-      const active = box?.ownerDocument?.activeElement;
-      if (box && active && box.contains(active))
+      const doc = box?.ownerDocument;
+      if (!box || !doc)
         return;
-      debug("focus", "claiming the wheel", why, { active: active?.tagName, cls: active?.className?.toString().slice(0, 60) });
+      if (doc.visibilityState === "hidden" || !doc.hasFocus?.())
+        return;
+      const active = doc.activeElement;
+      if (active && box.contains(active))
+        return;
+      const lost = !active || active === doc.body || !active.isConnected;
+      const inHiddenHome = !!active && !!sections.current?.contains(active);
+      if (!lost && !inHiddenHome)
+        return;
+      debug("focus", "claiming the wheel", why, { lost, inHiddenHome, cls: active?.className?.toString().slice(0, 60) });
       focusFirstIn(box);
     };
     for (const ms of BOOT_FOCUS_CLAIMS_MS)
       later(() => claim(`mount+${ms}ms`), ms);
+    const watch = setInterval(() => claim("watch"), FOCUS_WATCH_MS);
     const view = root.current?.ownerDocument?.defaultView;
-    const onWinFocus = () => later(() => claim("window focus"), 120);
+    const onWinFocus = () => later(() => claim("window focus"), 150);
     view?.addEventListener?.("focus", onWinFocus);
-    return () => view?.removeEventListener?.("focus", onWinFocus);
+    return () => {
+      clearInterval(watch);
+      view?.removeEventListener?.("focus", onWinFocus);
+    };
   }, []);
   const toSections = () => switchTo("sections");
   const toWheel = () => switchTo("wheel");
