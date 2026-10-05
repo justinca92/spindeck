@@ -498,10 +498,12 @@ function teardownAll() {
 // src/controllers.ts
 var DECK_PRODUCT_ID = 4613;
 var VALVE_VENDOR_ID = 10462;
+var DECK_DEFAULT_INDEX = 0;
 var known = false;
 var deck = new Set;
 var others = 0;
 var lastIdx = null;
+var activeIsDeck = null;
 function isDeck(c) {
   const name = String(c?.strName ?? c?.name ?? "");
   if (/steam\s*deck|neptune|jupiter|galileo/i.test(name))
@@ -537,8 +539,44 @@ function noteInput(idx) {
   if (typeof idx === "number" && idx >= 0)
     lastIdx = idx;
 }
+function notePadInput(idx) {
+  if (typeof idx === "number" && idx >= 0 && !deck.has(idx)) {
+    deck.add(idx);
+    debug("controllers", "deck pad seen on controller", idx);
+  }
+  noteInput(idx);
+}
+function onActive(...args) {
+  debug("controllers", "active controller changed", args);
+  try {
+    const cands = [];
+    for (const a of args) {
+      if (a && typeof a === "object")
+        cands.push(a, ...Array.isArray(a) ? a : Object.values(a));
+      else
+        cands.push(a);
+    }
+    for (const c of cands) {
+      if (c && typeof c === "object" && (c.strName || c.unVendorID || c.unProductID || c.eControllerType !== undefined)) {
+        activeIsDeck = isDeck(c);
+        const i = indexOf(c);
+        if (i !== null)
+          noteInput(i);
+        return;
+      }
+    }
+    const i = args.find((a) => typeof a === "number");
+    if (typeof i === "number") {
+      noteInput(i);
+      activeIsDeck = deck.size ? deck.has(i) : null;
+    }
+  } catch (e) {
+    debug("controllers", "active parse failed", e);
+  }
+}
 function onInput(...args) {
   const a = args[0];
+  debug("controllers", "input", args);
   if (Array.isArray(a)) {
     for (const m of a)
       if (m?.bS !== false)
@@ -552,10 +590,21 @@ function watchControllers() {
     return;
   started = true;
   const regs = [];
+  const Input = SteamClient?.Input;
+  debug("controllers", "apis", {
+    list: typeof Input?.RegisterForControllerListChanges,
+    active: typeof Input?.RegisterForActiveControllerChanges,
+    input: typeof Input?.RegisterForControllerInputMessages
+  });
   try {
-    regs.push(SteamClient?.Input?.RegisterForControllerListChanges?.(onList));
+    regs.push(Input?.RegisterForControllerListChanges?.(onList));
   } catch (e) {
     debug("controllers", "list watch unavailable", e);
+  }
+  try {
+    regs.push(Input?.RegisterForActiveControllerChanges?.(onActive));
+  } catch (e) {
+    debug("controllers", "active watch unavailable", e);
   }
   try {
     regs.push(SteamClient?.Input?.RegisterForControllerInputMessages?.(onInput));
@@ -570,18 +619,21 @@ function watchControllers() {
     }
     started = false;
     known = false;
+    activeIsDeck = null;
     deck.clear();
     others = 0;
     lastIdx = null;
   });
 }
 function deckInHands() {
+  if (lastIdx !== null)
+    return deck.size ? deck.has(lastIdx) : lastIdx === DECK_DEFAULT_INDEX;
+  if (activeIsDeck !== null)
+    return activeIsDeck;
   if (!known)
     return null;
   if (others === 0)
     return true;
-  if (lastIdx !== null && deck.size)
-    return deck.has(lastIdx);
   return false;
 }
 
@@ -630,7 +682,8 @@ function subscribeKeyboardAnalogWheel(opts) {
   try {
     const seen = new Set;
     reg = Input.RegisterForControllerAnalogInputMessages((idx, type, _p, x, y) => {
-      noteInput(idx);
+      if (type === ANALOG_TYPE.left || type === ANALOG_TYPE.right)
+        notePadInput(idx);
       const k = `${idx}:${type}`;
       if (!seen.has(k)) {
         seen.add(k);
@@ -1213,6 +1266,7 @@ var VIEW_ANIM_DEG = 70;
 var VIEW_ANIM_OUT_MS = 170;
 var VIEW_ANIM_IN_MS = 300;
 var VIEW_ANIM_RUMBLE_MS = 700;
+var INPUT_SETTLE_MS = 30;
 
 // src/WheelPage.tsx
 var BASE_CAPSULE_W = 80;
@@ -1608,8 +1662,10 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     }
     const turn = (flip ? -1 : 1) * d * VIEW_ANIM_DEG;
     fxBusy.current = true;
-    if (hapticOk())
-      stopRumble.current = rumbleBoth(VIEW_ANIM_RUMBLE_MS, live.current.circleOn, live.current.hapticLevel);
+    later(INPUT_SETTLE_MS, () => {
+      if (hapticOk())
+        stopRumble.current = rumbleBoth(VIEW_ANIM_RUMBLE_MS, live.current.circleOn, live.current.hapticLevel);
+    });
     setRingFx({ rot: turn, op: 0, ms: VIEW_ANIM_OUT_MS, ease: "cubic-bezier(0.55, 0, 0.9, 0.45)" });
     later(VIEW_ANIM_OUT_MS, () => {
       setViewKey(target);
@@ -1663,7 +1719,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
         return stopSpin(true);
       spinTimer.current = setTimeout(tick, ROULETTE_STEP_MS + ROULETTE_SLOWDOWN_MS * Math.pow(i / steps, ROULETTE_EASE));
     };
-    tick();
+    spinTimer.current = setTimeout(tick, INPUT_SETTLE_MS);
   };
   const [size, setSize] = useState({ w: 1280, h: 800 });
   const onExternal = Math.abs(size.w / Math.max(1, size.h) - 1.6) > 0.04 || size.w > 1400;

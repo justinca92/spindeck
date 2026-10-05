@@ -69,3 +69,5 @@ export const VIEW_ANIM_OUT_MS = 170;
 export const VIEW_ANIM_IN_MS = 300;
 /** Both-pad rumble during the swap. */
 export const VIEW_ANIM_RUMBLE_MS = 700;
+/** Wait this long after a button before haptics, so Steam's input message (which controller) has arrived. */
+export const INPUT_SETTLE_MS = 30;

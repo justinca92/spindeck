@@ -3,7 +3,7 @@
 ## 1.3.0 — unreleased
 
 ### Added
-- **Haptics only on the Deck's own controls** (panel → Controls, on by default). Spindeck watches Steam's controller list and where input comes from: if another controller is connected and in use (Deck docked to a TV with a pad, a Steam Controller…), the Deck doesn't vibrate. Without controller info from Steam it falls back to the screen: not the Deck's 16:10 = docked.
+- **Haptics only on the Deck's own controls** (panel → Controls, on by default). Steam reports which controller every button press comes from (`RegisterForControllerInputMessages`: controller index, button, pressed; on device the Deck was 0, a DualSense 15). If the latest input isn't from the Deck, the Deck doesn't vibrate. The Deck's index is also learned from its trackpad messages. Without any input info yet, it falls back to the screen (not 16:10 = docked). Roulette and the L1/R1 rumble start 30 ms after the button, once the controller is known.
 - Diagnostics in the console (debug level): each new analog input (controller index + type) and the connected controller list, to work out left-stick input and Steam Controller 2 support.
 
 ### Fixed

@@ -39,6 +39,7 @@ import {
   WHEEL_FOLLOW_TAU_MS,
   WHEEL_MAX_LAG,
   FRAME_FALLBACK_MS,
+  INPUT_SETTLE_MS,
   WINDOW_REFOCUS_DELAY_MS,
 } from "./constants";
 
@@ -528,7 +529,10 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
     const turn = (flip ? -1 : 1) * d * VIEW_ANIM_DEG;
     fxBusy.current = true;
     // Brrrr on both pads while the cylinder turns.
-    if (hapticOk()) stopRumble.current = rumbleBoth(VIEW_ANIM_RUMBLE_MS, live.current.circleOn, live.current.hapticLevel);
+    // (A beat later, like the roulette: the pressing controller is known by then.)
+    later(INPUT_SETTLE_MS, () => {
+      if (hapticOk()) stopRumble.current = rumbleBoth(VIEW_ANIM_RUMBLE_MS, live.current.circleOn, live.current.hapticLevel);
+    });
     setRingFx({ rot: turn, op: 0, ms: VIEW_ANIM_OUT_MS, ease: "cubic-bezier(0.55, 0, 0.9, 0.45)" });
     later(VIEW_ANIM_OUT_MS, () => {
       setViewKey(target);
@@ -590,7 +594,9 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
       if (i >= steps) return stopSpin(true);
       spinTimer.current = setTimeout(tick, ROULETTE_STEP_MS + ROULETTE_SLOWDOWN_MS * Math.pow(i / steps, ROULETTE_EASE));
     };
-    tick();
+    // Steam reports which controller pressed Ⓨ just after the button event:
+    // start a beat later so the first haptic tick knows where to go.
+    spinTimer.current = setTimeout(tick, INPUT_SETTLE_MS);
   };
 
   // Plugin code runs in Steam's hidden SharedJSContext window, so `window`

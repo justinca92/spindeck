@@ -15,7 +15,7 @@
 
 import { onTeardown } from "./safety";
 import { debug } from "./log";
-import { noteInput } from "./controllers";
+import { notePadInput } from "./controllers";
 
 export interface PadWheelOptions {
   stepDegrees: number;
@@ -81,7 +81,7 @@ export function subscribeKeyboardAnalogWheel(opts: PadWheelOptions): () => void 
     reg = Input.RegisterForControllerAnalogInputMessages((idx: number, type: number, _p: boolean, x: number, y: number) => {
       // Diagnostics: log each (controller, input type) once, e.g. to find the
       // left stick or a second controller's pads.
-      noteInput(idx);
+      if (type === ANALOG_TYPE.left || type === ANALOG_TYPE.right) notePadInput(idx);
       const k = `${idx}:${type}`;
       if (!seen.has(k)) {
         seen.add(k);
