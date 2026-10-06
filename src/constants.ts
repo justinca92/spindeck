@@ -75,3 +75,21 @@ export const INPUT_SETTLE_MS = 30;
 export const BOOT_FOCUS_CLAIMS_MS = [150, 600, 1500, 3000];
 /** While the wheel screen is shown, check this often that gamepad focus isn't lost or stuck on Steam's hidden home. */
 export const FOCUS_WATCH_MS = 1000;
+
+/** Hero art's vertical centre, % of screen height (50 = centred). */
+export const HERO_CENTER_PCT = 38;
+/** Dark fade along the bottom so the game info and corner text stay readable over the art. */
+export const HERO_BOTTOM_VIGNETTE =
+  "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.75) 18%, rgba(0,0,0,0.35) 36%, transparent 55%)";
+/** Hero art pushed this far (% of screen width) past the screen edge on the art side, away from the wheel. */
+export const HERO_SHIFT_PCT = 3;
+/** Hero art is clear inside the wheel's ring and fades in over this much of the screen width beyond it. */
+export const HERO_FADE_WIDTH = 0.22;
+/** Pixels trimmed off every edge of the sharp hero art (hides thin light borders / edge seams). */
+export const HERO_EDGE_CLIP_PX = 3;
+/** Far blurred backdrop = the sharp hero art's box enlarged evenly around its centre (fills the screen above it). */
+export const HERO_BG_SCALE = 1.7;
+/** Black vignette on the wheel side: dark up to the wheel's ring, fading out over this much of the screen width beyond it. */
+export const WHEEL_VIGNETTE_WIDTH = 0.3;
+/** Wheel-side vignette darkness (black alpha): at the screen edge, at the wheel's ring, halfway through the fade. */
+export const WHEEL_VIGNETTE = [0.8, 0.6, 0.25] as const;

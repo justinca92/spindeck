@@ -127,7 +127,8 @@ function toEntries(apps: any[], installedOnly: boolean, sort: "recent" | "alpha"
       appid: a.appid,
       gameid: String(a.m_gameid ?? a.gameid ?? a.appid),
       name: a.display_name ?? a.sort_as ?? String(a.appid),
-      lastPlayed: a.rt_last_time_played ?? a.rt_last_time_locally_played ?? 0,
+      // Non-Steam shortcuts often leave rt_last_time_played at 0 and only fill the local one.
+      lastPlayed: Math.max(Number(a.rt_last_time_played) || 0, Number(a.rt_last_time_locally_played) || 0),
       installed: a.app_type === APP_TYPE_SHORTCUT ? true : !!(a.installed ?? a.local_per_client_data?.installed),
       hero: urls(a, "hero"),
       capsule: urls(a, "capsule"),
@@ -135,7 +136,7 @@ function toEntries(apps: any[], installedOnly: boolean, sort: "recent" | "alpha"
     }))
     .filter((g) => !installedOnly || g.installed);
 
-  const minutes = (g: GameEntry) => Number(g.overview?.minutes_playtime_forever ?? 0);
+  const minutes = (g: GameEntry) => overviewMinutes(g.overview);
   list.sort((x, y) =>
     sort === "alpha"
       ? x.name.localeCompare(y.name)
@@ -164,24 +165,62 @@ export interface AchievementProgress {
   total: number;
 }
 
+/** Total playtime in minutes from the library overview (0 if unknown). */
+export function overviewMinutes(o: any): number {
+  return Math.max(Number(o?.minutes_playtime_forever) || 0, Number(o?.local_per_client_data?.minutes_playtime_forever) || 0);
+}
+
+/** What the resting game's details add: achievements, and for non-Steam shortcuts the playtime. */
+export interface AppExtra {
+  ach: AchievementProgress | null;
+  minutes: number | null;    // total playtime from the details, when it has one
+  lastPlayed: number | null; // seconds, when it has one
+}
+
+// Steam's game page reads playtime from the app details, which also covers
+// non-Steam shortcuts (their library overview reports 0). Field names are not
+// public and vary between clients, so a few are tried; the details' shape is
+// logged once (debug) for checking on device.
+const MINUTE_FIELDS = ["nPlaytimeForever", "nPlaytime", "unPlaytimeForever", "nMinutesPlaytimeForever", "minutes_playtime_forever"];
+const LAST_FIELDS = ["rtLastTimePlayed", "rtLastTimeLocallyPlayed", "rt_last_time_played"];
+let loggedDetails = false;
+
+function firstNumber(d: any, fields: string[]): number | null {
+  for (const f of fields) {
+    const v = Number(d?.[f]);
+    if (Number.isFinite(v) && v > 0) return v;
+  }
+  return null;
+}
+
 /**
- * Watches achievement progress for one app via Steam's app-details feed.
- * Calls back with null for games without achievements (and for non-Steam shortcuts).
- * Field names come from the internal AppDetails object; verify in DevTools if it stays empty.
+ * Watches one app's details (achievements, playtime) via Steam's app-details feed.
+ * Field names come from the internal AppDetails object; verify in DevTools if they stay empty.
  */
-export function subscribeAchievements(
-  appid: number,
-  cb: (p: AchievementProgress | null) => void
-): () => void {
+export function subscribeAppExtra(appid: number, cb: (x: AppExtra) => void): () => void {
   let reg: any;
   try {
     reg = SteamClient?.Apps?.RegisterForAppDetails?.(appid, (details: any) => {
+      if (!loggedDetails) {
+        loggedDetails = true;
+        try {
+          const pick: Record<string, unknown> = {};
+          for (const k of Object.keys(details ?? {})) if (/play|time|last/i.test(k)) pick[k] = details[k];
+          debug("details", "app details time fields", appid, pick);
+        } catch {
+          /* ignore */
+        }
+      }
       const a = details?.achievements;
       const total = a?.nTotal ?? 0;
-      cb(total > 0 ? { achieved: a?.nAchieved ?? 0, total } : null);
+      cb({
+        ach: total > 0 ? { achieved: a?.nAchieved ?? 0, total } : null,
+        minutes: firstNumber(details, MINUTE_FIELDS),
+        lastPlayed: firstNumber(details, LAST_FIELDS),
+      });
     });
   } catch {
-    cb(null);
+    cb({ ach: null, minutes: null, lastPlayed: null });
   }
   return () => reg?.unregister?.();
 }

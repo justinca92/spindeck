@@ -48,12 +48,12 @@ var DEFAULTS = {
   textScale: 0.7,
   wheelSizePct: 32,
   visibleCount: 11,
-  heroScale: 105,
+  heroScale: 95,
   soundEnabled: true,
   hapticEnabled: true,
   hapticLevel: 7,
   odometerTurns: 0,
-  settingsVersion: 6,
+  settingsVersion: 7,
   rawPadApi: true,
   stepDegrees: 40,
   hapticDegrees: 5,
@@ -104,6 +104,12 @@ async function initSettings() {
       if ((merged.hapticLevel ?? 5) === 5)
         merged.hapticLevel = DEFAULTS.hapticLevel;
       merged.settingsVersion = 6;
+      needsSave = true;
+    }
+    if (merged.settingsVersion < 7) {
+      if ((merged.heroScale ?? 105) === 105)
+        merged.heroScale = DEFAULTS.heroScale;
+      merged.settingsVersion = 7;
       needsSave = true;
     }
     delete merged.dockedNoHaptics;
@@ -270,6 +276,9 @@ var ko = {
   reloadDesc: "화면이 꼬였을 때 휠을 처음 상태로 다시 불러와요. 설정은 그대로예요.",
   langAuto: "자동 (스팀 언어)",
   playtime: (min) => !min ? "아직 플레이 안 함" : min < 60 ? `플레이 시간 ${min}분` : `플레이 시간 ${fmtHours(min)}시간`,
+  playtimeShort: (min) => !min ? "아직 플레이 안 함" : min < 60 ? `${min}분` : `${fmtHours(min)}시간`,
+  lastPlayed: (days) => days <= 0 ? "오늘" : days === 1 ? "어제" : days < 7 ? `${days}일 전` : days < 30 ? `${Math.floor(days / 7)}주 전` : days < 365 ? `${Math.floor(days / 30)}개월 전` : `${Math.floor(days / 365)}년 전`,
+  friendsPlaying: (n) => `${n}명 플레이 중`,
   roulette: "오늘의 게임은?",
   rouletteSpinning: "오늘의 게임을 고르는 중…",
   rouletteDone: (g) => `오늘의 게임: ${g}`
@@ -336,6 +345,9 @@ var en = {
   reloadDesc: "If the screen gets stuck, reload the wheel from scratch. Settings are kept.",
   langAuto: "Auto (Steam language)",
   playtime: (min) => !min ? "NOT PLAYED YET" : min < 60 ? `PLAYTIME ${min} MIN` : `PLAYTIME ${fmtHours(min)} HRS`,
+  playtimeShort: (min) => !min ? "NOT PLAYED YET" : min < 60 ? `${min} MIN` : `${fmtHours(min)} ${fmtHours(min) === "1" ? "HR" : "HRS"}`,
+  lastPlayed: (days) => days <= 0 ? "TODAY" : days === 1 ? "YESTERDAY" : days < 7 ? `${days} DAYS AGO` : days < 30 ? `${Math.floor(days / 7)} WK AGO` : days < 365 ? `${Math.floor(days / 30)} MO AGO` : `${Math.floor(days / 365)} YR AGO`,
+  friendsPlaying: (n) => `${n} PLAYING`,
   roulette: "Today's game?",
   rouletteSpinning: "Picking today's game…",
   rouletteDone: (g) => `Today's game: ${g}`
@@ -431,13 +443,13 @@ function toEntries(apps, installedOnly, sort) {
     appid: a.appid,
     gameid: String(a.m_gameid ?? a.gameid ?? a.appid),
     name: a.display_name ?? a.sort_as ?? String(a.appid),
-    lastPlayed: a.rt_last_time_played ?? a.rt_last_time_locally_played ?? 0,
+    lastPlayed: Math.max(Number(a.rt_last_time_played) || 0, Number(a.rt_last_time_locally_played) || 0),
     installed: a.app_type === APP_TYPE_SHORTCUT ? true : !!(a.installed ?? a.local_per_client_data?.installed),
     hero: urls(a, "hero"),
     capsule: urls(a, "capsule"),
     overview: a
   })).filter((g) => !installedOnly || g.installed);
-  const minutes = (g) => Number(g.overview?.minutes_playtime_forever ?? 0);
+  const minutes = (g) => overviewMinutes(g.overview);
   list.sort((x, y) => sort === "alpha" ? x.name.localeCompare(y.name) : sort === "playtime" ? minutes(y) - minutes(x) || y.lastPlayed - x.lastPlayed : y.lastPlayed - x.lastPlayed);
   return list;
 }
@@ -446,16 +458,44 @@ function openGamePage(g) {
     Navigation.Navigate(`/library/app/${g.appid}`);
   } catch {}
 }
-function subscribeAchievements(appid, cb) {
+function overviewMinutes(o) {
+  return Math.max(Number(o?.minutes_playtime_forever) || 0, Number(o?.local_per_client_data?.minutes_playtime_forever) || 0);
+}
+var MINUTE_FIELDS = ["nPlaytimeForever", "nPlaytime", "unPlaytimeForever", "nMinutesPlaytimeForever", "minutes_playtime_forever"];
+var LAST_FIELDS = ["rtLastTimePlayed", "rtLastTimeLocallyPlayed", "rt_last_time_played"];
+var loggedDetails = false;
+function firstNumber(d, fields) {
+  for (const f of fields) {
+    const v = Number(d?.[f]);
+    if (Number.isFinite(v) && v > 0)
+      return v;
+  }
+  return null;
+}
+function subscribeAppExtra(appid, cb) {
   let reg;
   try {
     reg = SteamClient?.Apps?.RegisterForAppDetails?.(appid, (details) => {
+      if (!loggedDetails) {
+        loggedDetails = true;
+        try {
+          const pick = {};
+          for (const k of Object.keys(details ?? {}))
+            if (/play|time|last/i.test(k))
+              pick[k] = details[k];
+          debug("details", "app details time fields", appid, pick);
+        } catch {}
+      }
       const a = details?.achievements;
       const total = a?.nTotal ?? 0;
-      cb(total > 0 ? { achieved: a?.nAchieved ?? 0, total } : null);
+      cb({
+        ach: total > 0 ? { achieved: a?.nAchieved ?? 0, total } : null,
+        minutes: firstNumber(details, MINUTE_FIELDS),
+        lastPlayed: firstNumber(details, LAST_FIELDS)
+      });
     });
   } catch {
-    cb(null);
+    cb({ ach: null, minutes: null, lastPlayed: null });
   }
   return () => reg?.unregister?.();
 }
@@ -1228,6 +1268,137 @@ function sweepLeftovers() {
   }
 }
 
+// src/InfoRow.tsx
+var PATHS = {
+  clock: /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement("circle", {
+    cx: "12",
+    cy: "12",
+    r: "9"
+  }), /* @__PURE__ */ window.SP_REACT.createElement("path", {
+    d: "M12 7v5l3 2"
+  })),
+  recent: /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement("path", {
+    d: "M3 12a9 9 0 1 0 3-6.7"
+  }), /* @__PURE__ */ window.SP_REACT.createElement("path", {
+    d: "M3 4v5h5"
+  }), /* @__PURE__ */ window.SP_REACT.createElement("path", {
+    d: "M12 8v4l2.5 2.5"
+  })),
+  trophy: /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement("path", {
+    d: "M8 4h8v5a4 4 0 0 1-8 0z"
+  }), /* @__PURE__ */ window.SP_REACT.createElement("path", {
+    d: "M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"
+  }), /* @__PURE__ */ window.SP_REACT.createElement("path", {
+    d: "M12 13v4M9 20h6"
+  })),
+  friends: /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement("circle", {
+    cx: "9",
+    cy: "9",
+    r: "3.2"
+  }), /* @__PURE__ */ window.SP_REACT.createElement("path", {
+    d: "M3.5 19a5.5 5.5 0 0 1 11 0"
+  }), /* @__PURE__ */ window.SP_REACT.createElement("circle", {
+    cx: "17",
+    cy: "10",
+    r: "2.6"
+  }), /* @__PURE__ */ window.SP_REACT.createElement("path", {
+    d: "M15.5 14.6A4.5 4.5 0 0 1 21 19"
+  }))
+};
+var FRIENDS_GREEN = "#8bc53f";
+var TEXT = "#c8d1dc";
+function Item({ icon, color = TEXT, children }) {
+  return /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    style: { display: "inline-flex", alignItems: "center", gap: 6, color }
+  }, /* @__PURE__ */ window.SP_REACT.createElement("svg", {
+    width: 15,
+    height: 15,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: color,
+    strokeWidth: 2.2,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    style: { flex: "none" }
+  }, PATHS[icon]), children);
+}
+function InfoRow({
+  playtime,
+  lastPlayed,
+  ach,
+  friends,
+  accent,
+  style
+}) {
+  return /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    className: "dw-info",
+    style: { display: "flex", alignItems: "center", gap: 18, fontSize: 13, letterSpacing: "0.06em", ...style }
+  }, /* @__PURE__ */ window.SP_REACT.createElement(Item, {
+    icon: "clock"
+  }, playtime), lastPlayed && /* @__PURE__ */ window.SP_REACT.createElement(Item, {
+    icon: "recent"
+  }, lastPlayed), ach && /* @__PURE__ */ window.SP_REACT.createElement(Item, {
+    icon: "trophy"
+  }, ach.achieved, "/", ach.total, /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    style: { width: 46, height: 4, borderRadius: 2, background: "#ffffff33", overflow: "hidden", marginLeft: 2 }
+  }, /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    style: { display: "block", height: "100%", width: `${ach.achieved / ach.total * 100}%`, background: accent }
+  }))), friends && /* @__PURE__ */ window.SP_REACT.createElement(Item, {
+    icon: "friends",
+    color: FRIENDS_GREEN
+  }, friends));
+}
+
+// src/friends.ts
+function store() {
+  return window?.friendStore ?? window?.g_FriendsUIApp?.FriendStore ?? null;
+}
+function friendsList(fs) {
+  const cands = [fs?.allFriends, fs?.m_FriendsList?.allFriends, fs?.FriendGroupStore?.allFriends, fs?.m_mapFriends && [...fs.m_mapFriends.values()]];
+  for (const c of cands)
+    if (Array.isArray(c) && c.length)
+      return c;
+  return [];
+}
+function playing(f) {
+  const p = f?.persona ?? f?.m_persona ?? f;
+  const id = p?.m_unGamePlayedAppID ?? p?.m_gameid ?? p?.gameid ?? p?.m_game_id ?? p?.appid ?? 0;
+  const n = typeof id === "string" ? Number(id) : Number(id ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+var logged = false;
+function friendsInGame(appid) {
+  try {
+    const fs = store();
+    if (!fs) {
+      if (!logged)
+        debug("friends", "no friends store");
+      logged = true;
+      return null;
+    }
+    const list = friendsList(fs);
+    if (!logged) {
+      logged = true;
+      const f = list[0];
+      debug("friends", "store", {
+        keys: Object.keys(fs).slice(0, 40),
+        count: list.length,
+        sample: f && { keys: Object.keys(f).slice(0, 30), persona: f.persona && Object.keys(f.persona).slice(0, 40) }
+      });
+    }
+    if (!list.length)
+      return null;
+    let n = 0;
+    for (const f of list)
+      if (playing(f) === appid)
+        n++;
+    return n;
+  } catch (e) {
+    debug("friends", "read failed", e);
+    return null;
+  }
+}
+
 // src/constants.ts
 var SLIDE_MS = 300;
 var SLIDE_SETTLED_MS = 320;
@@ -1269,6 +1440,14 @@ var VIEW_ANIM_RUMBLE_MS = 700;
 var INPUT_SETTLE_MS = 30;
 var BOOT_FOCUS_CLAIMS_MS = [150, 600, 1500, 3000];
 var FOCUS_WATCH_MS = 1000;
+var HERO_CENTER_PCT = 38;
+var HERO_BOTTOM_VIGNETTE = "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.75) 18%, rgba(0,0,0,0.35) 36%, transparent 55%)";
+var HERO_SHIFT_PCT = 3;
+var HERO_FADE_WIDTH = 0.22;
+var HERO_EDGE_CLIP_PX = 3;
+var HERO_BG_SCALE = 1.7;
+var WHEEL_VIGNETTE_WIDTH = 0.3;
+var WHEEL_VIGNETTE = [0.8, 0.6, 0.25];
 
 // src/WheelPage.tsx
 var BASE_CAPSULE_W = 80;
@@ -1464,44 +1643,64 @@ var WheelRing = memo(function WheelRing(p) {
     style: { position: "absolute", inset: 0 }
   }, items);
 });
-var Hero = memo(function Hero({ game, flip, heroScale }) {
+var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct }) {
   if (!game)
     return null;
   const srcs = [...game.hero, ...game.capsule];
-  return /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(FallbackImg, {
-    key: `bg-${game.appid}`,
+  const w = heroScale / 100;
+  const start = 1 + HERO_SHIFT_PCT / 100 - w;
+  const ring = wheelSizePct / 100 - 0.02;
+  const at = (x) => `${Math.max(0, Math.min(100, (x - start) / w * 100)).toFixed(1)}%`;
+  const artBox = {
+    position: "absolute",
+    top: `${HERO_CENTER_PCT}%`,
+    [flip ? "right" : "left"]: `-${HERO_SHIFT_PCT}%`,
+    width: `${heroScale}%`,
+    maxHeight: "92%",
+    objectFit: "contain",
+    objectPosition: flip ? "right center" : "left center"
+  };
+  const sideFade = `linear-gradient(to ${flip ? "right" : "left"}, transparent ${at(ring)}, #000 ${at(ring + HERO_FADE_WIDTH)})`;
+  return /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, ["far", "near"].map((layer) => /* @__PURE__ */ window.SP_REACT.createElement(FallbackImg, {
+    key: `bg-${layer}-${game.appid}`,
     className: "dw-hero",
     srcs,
     style: {
+      ...artBox,
+      transformOrigin: "center",
+      transform: layer === "far" ? `translateY(-50%) scale(${HERO_BG_SCALE})` : "translateY(-50%)",
+      filter: layer === "far" ? "blur(18px) brightness(0.4) saturate(1.2)" : "blur(10px) brightness(0.55) saturate(1.15)"
+    }
+  })), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: {
       position: "absolute",
-      left: "37.5%",
-      top: "37.5%",
-      width: "25%",
-      height: "25%",
-      objectFit: "cover",
-      filter: "blur(7px) brightness(0.42) saturate(1.2)",
-      transform: "scale(4.48)"
+      inset: 0,
+      pointerEvents: "none",
+      background: `linear-gradient(to ${flip ? "right" : "left"}, rgba(0,0,0,${WHEEL_VIGNETTE[0]}) 0%, rgba(0,0,0,${WHEEL_VIGNETTE[1]}) ${(ring * 100).toFixed(1)}%, rgba(0,0,0,${WHEEL_VIGNETTE[2]}) ${((ring + WHEEL_VIGNETTE_WIDTH / 2) * 100).toFixed(1)}%, transparent ${((ring + WHEEL_VIGNETTE_WIDTH) * 100).toFixed(1)}%)`
     }
   }), /* @__PURE__ */ window.SP_REACT.createElement(FallbackImg, {
     key: `fg-${game.appid}`,
     className: "dw-hero",
     srcs,
     style: {
-      position: "absolute",
-      top: "50%",
+      ...artBox,
       transform: "translateY(-50%)",
-      [flip ? "right" : "left"]: 0,
-      width: `${heroScale}%`,
-      maxHeight: "92%",
-      objectFit: "contain",
-      objectPosition: flip ? "right center" : "left center",
-      WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, #000 30%, #000 70%, transparent 100%), linear-gradient(to ${flip ? "left" : "right"}, #000 72%, transparent 100%)`,
-      WebkitMaskComposite: "source-in"
+      WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, transparent 3%, #000 30%, #000 70%, transparent 97%, transparent 100%), ${sideFade}`,
+      WebkitMaskComposite: "source-in",
+      clipPath: `inset(${HERO_EDGE_CLIP_PX}px)`
     }
   }), /* @__PURE__ */ window.SP_REACT.createElement("div", {
-    style: { position: "absolute", inset: 0, background: "linear-gradient(to top, #000a 0%, transparent 40%)", pointerEvents: "none" }
+    style: { position: "absolute", inset: 0, background: HERO_BOTTOM_VIGNETTE, pointerEvents: "none" }
   }));
 });
+var STEAM_EPOCH = 1062000000;
+function daysSince(rt) {
+  const d = new Date(rt * 1000);
+  const now = new Date;
+  const a = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const b = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return Math.max(0, Math.round((b - a) / 86400000));
+}
 function useSettled(value, ms) {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -1843,13 +2042,18 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     clearTimeout(popupTimer.current);
     popupTimer.current = setTimeout(() => setPopup((p) => ({ ...p, show: false })), LETTER_POPUP_MS);
   }, [sel, alpha, letters]);
-  const [ach, setAch] = useState(null);
+  const infoAppid = useSettled(current?.appid, ACHIEVEMENTS_DELAY_MS);
+  const infoReady = !!current && infoAppid === current.appid;
+  const friends = useMemo(() => infoReady && current ? friendsInGame(current.appid) : null, [infoReady, current?.appid]);
+  const [extra, setExtra] = useState(null);
+  const ach = extra?.ach ?? null;
+  const lastPlayedAt = Math.max(current?.lastPlayed ?? 0, extra?.lastPlayed ?? 0);
   useEffect(() => {
-    setAch(null);
+    setExtra(null);
     if (!current)
       return;
     let unsub = () => {};
-    const tm = setTimeout(() => unsub = subscribeAchievements(current.appid, setAch), ACHIEVEMENTS_DELAY_MS);
+    const tm = setTimeout(() => unsub = subscribeAppExtra(current.appid, setExtra), ACHIEVEMENTS_DELAY_MS);
     return () => {
       clearTimeout(tm);
       unsub();
@@ -1963,10 +2167,12 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
              positioning (translateY(-50%)) and make it jump into place. */
           @keyframes dwFade { from { opacity: 0; } to { opacity: 1; } }
           .dw-hero { animation: dwFade 220ms ease-out; }
+          .dw-info { animation: dwFade 200ms ease-out; }
         `), /* @__PURE__ */ window.SP_REACT.createElement(Hero, {
     game: games[heroSel],
     flip,
-    heroScale: s.heroScale
+    heroScale: s.heroScale,
+    wheelSizePct: s.wheelSizePct
   }), /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: {
       position: "absolute",
@@ -2031,14 +2237,16 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       letterSpacing: "0.08em"
     }
   }, /* @__PURE__ */ window.SP_REACT.createElement("span", {
-    style: { color: s.accentColor }
-  }, current.name.toUpperCase(), " · ", t.playtime(Number(current.overview?.minutes_playtime_forever ?? 0))), ach && /* @__PURE__ */ window.SP_REACT.createElement("span", {
-    style: { display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#c8d1dc" }
-  }, "STEAM ACHIEVEMENTS ", ach.achieved, "/", ach.total, /* @__PURE__ */ window.SP_REACT.createElement("span", {
-    style: { width: 80, height: 4, borderRadius: 2, background: "#ffffff33", overflow: "hidden" }
-  }, /* @__PURE__ */ window.SP_REACT.createElement("span", {
-    style: { display: "block", height: "100%", width: `${ach.achieved / ach.total * 100}%`, background: s.accentColor }
-  })))), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    "data-dw": "title",
+    style: { color: s.accentColor, fontSize: 20, letterSpacing: "0.04em" }
+  }, current.name.toUpperCase()), infoReady && /* @__PURE__ */ window.SP_REACT.createElement(InfoRow, {
+    key: `info-${current.appid}`,
+    playtime: t.playtimeShort(Math.max(overviewMinutes(current.overview), extra?.minutes ?? 0)),
+    lastPlayed: lastPlayedAt > STEAM_EPOCH ? t.lastPlayed(daysSince(lastPlayedAt)) : null,
+    ach,
+    friends: friends ? t.friendsPlaying(friends) : null,
+    accent: s.accentColor
+  })), /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }
   }, s.ownerText), s.subtitleText && /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { fontSize: 16, opacity: 0.8, marginTop: 4 }
@@ -2873,7 +3081,7 @@ function WheelHome({ original }) {
 // src/links.ts
 var KOFI_URL = "https://ko-fi.com/jhw0806";
 var REPO_URL = "https://github.com/justinca92/spindeck";
-var PLUGIN_VERSION = "1.3.0";
+var PLUGIN_VERSION = "1.3.1";
 
 // src/index.tsx
 var ROUTE = "/spindeck";

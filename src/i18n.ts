@@ -69,6 +69,10 @@ const ko = {
   langAuto: "자동 (스팀 언어)",
   playtime: (min: number) =>
     !min ? "아직 플레이 안 함" : min < 60 ? `플레이 시간 ${min}분` : `플레이 시간 ${fmtHours(min)}시간`,
+  playtimeShort: (min: number) => (!min ? "아직 플레이 안 함" : min < 60 ? `${min}분` : `${fmtHours(min)}시간`),
+  lastPlayed: (days: number) =>
+    days <= 0 ? "오늘" : days === 1 ? "어제" : days < 7 ? `${days}일 전` : days < 30 ? `${Math.floor(days / 7)}주 전` : days < 365 ? `${Math.floor(days / 30)}개월 전` : `${Math.floor(days / 365)}년 전`,
+  friendsPlaying: (n: number) => `${n}명 플레이 중`,
   roulette: "오늘의 게임은?",
   rouletteSpinning: "오늘의 게임을 고르는 중…",
   rouletteDone: (g: string) => `오늘의 게임: ${g}`,
@@ -137,6 +141,10 @@ const en: typeof ko = {
   langAuto: "Auto (Steam language)",
   playtime: (min: number) =>
     !min ? "NOT PLAYED YET" : min < 60 ? `PLAYTIME ${min} MIN` : `PLAYTIME ${fmtHours(min)} HRS`,
+  playtimeShort: (min: number) => (!min ? "NOT PLAYED YET" : min < 60 ? `${min} MIN` : `${fmtHours(min)} ${fmtHours(min) === "1" ? "HR" : "HRS"}`),
+  lastPlayed: (days: number) =>
+    days <= 0 ? "TODAY" : days === 1 ? "YESTERDAY" : days < 7 ? `${days} DAYS AGO` : days < 30 ? `${Math.floor(days / 7)} WK AGO` : days < 365 ? `${Math.floor(days / 30)} MO AGO` : `${Math.floor(days / 365)} YR AGO`,
+  friendsPlaying: (n: number) => `${n} PLAYING`,
   roulette: "Today's game?",
   rouletteSpinning: "Picking today's game…",
   rouletteDone: (g: string) => `Today's game: ${g}`,

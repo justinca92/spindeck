@@ -2,7 +2,7 @@ import { Focusable, GamepadButton, GamepadEvent, Navigation } from "@decky/ui";
 import { CSSProperties, memo, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "./i18n";
 import { debug } from "./log";
-import { AchievementProgress, GameEntry, listCollections, loadCollectionGames, loadGames, openGamePage, subscribeAchievements } from "./games";
+import { AppExtra, GameEntry, listCollections, loadCollectionGames, loadGames, openGamePage, overviewMinutes, subscribeAppExtra } from "./games";
 import { subscribeCursorWheel, subscribeKeyboardAnalogWheel, subscribeScrollWheel } from "./padInput";
 import { getSettings, settingsLoaded, updateSettings, useSettings } from "./settings";
 import { crossedMilestone } from "./odometer";
@@ -12,6 +12,8 @@ import { playUiSound } from "./sound";
 import { openNativeGameMenu } from "./nativeMenu";
 import { rumbleBoth, wheelTick } from "./haptics";
 import { findHeaderSearch } from "./steamDom";
+import { InfoRow } from "./InfoRow";
+import { friendsInGame } from "./friends";
 import {
   ACHIEVEMENTS_DELAY_MS,
   ARRIVAL_IGNORE_MS,
@@ -41,6 +43,14 @@ import {
   FRAME_FALLBACK_MS,
   INPUT_SETTLE_MS,
   WINDOW_REFOCUS_DELAY_MS,
+  HERO_CENTER_PCT,
+  HERO_BOTTOM_VIGNETTE,
+  HERO_SHIFT_PCT,
+  HERO_FADE_WIDTH,
+  HERO_EDGE_CLIP_PX,
+  HERO_BG_SCALE,
+  WHEEL_VIGNETTE_WIDTH,
+  WHEEL_VIGNETTE,
 } from "./constants";
 
 const BASE_CAPSULE_W = 80;
@@ -284,26 +294,58 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
 });
 
 /** Selected game's art, blurred background + sharp foreground. Changes only once the wheel rests. */
-const Hero = memo(function Hero({ game, flip, heroScale }: { game: GameEntry | undefined; flip: boolean; heroScale: number }) {
+const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct }: { game: GameEntry | undefined; flip: boolean; heroScale: number; wheelSizePct: number }) {
   if (!game) return null;
   const srcs = [...game.hero, ...game.capsule];
+  // Pushed toward the art side (partly off-screen there) and faded out on the
+  // wheel side so that it's fully clear inside the wheel's circle.
+  // All in fractions of the screen width, measured from the wheel's edge.
+  const w = heroScale / 100;
+  const start = 1 + HERO_SHIFT_PCT / 100 - w; // where the image begins (wheel side)
+  const ring = wheelSizePct / 100 - 0.02; // the wheel's ring (its centre sits 2% off-screen)
+  const at = (x: number) => `${Math.max(0, Math.min(100, ((x - start) / w) * 100)).toFixed(1)}%`;
+  const artBox: CSSProperties = {
+    position: "absolute",
+    top: `${HERO_CENTER_PCT}%`,
+    [flip ? "right" : "left"]: `-${HERO_SHIFT_PCT}%`,
+    width: `${heroScale}%`,
+    maxHeight: "92%",
+    objectFit: "contain",
+    objectPosition: flip ? "right center" : "left center",
+  };
+  const sideFade = `linear-gradient(to ${flip ? "right" : "left"}, transparent ${at(ring)}, #000 ${at(ring + HERO_FADE_WIDTH)})`;
   return (
     <>
-      <FallbackImg
-        key={`bg-${game.appid}`}
-        className="dw-hero"
-        srcs={srcs}
+      {/* Blurred backdrop in two layers, both in the sharp art's own box (same
+          anchor, centre and size), so the blur lines up with the art:
+          - far: enlarged evenly around the art's centre, very soft, fills the
+            screen around it (the vignettes cover the wheel side and bottom);
+          - near: exactly where the sharp art is, softer than it but the same
+            picture, so where the art fades out it melts into a blurred copy of
+            itself. Its own blurred edge fades into the far layer.
+          Blurred at the art's own size (cheaper than a full-screen blur). */}
+      {(["far", "near"] as const).map((layer) => (
+        <FallbackImg
+          key={`bg-${layer}-${game.appid}`}
+          className="dw-hero"
+          srcs={srcs}
+          style={{
+            ...artBox,
+            transformOrigin: "center",
+            transform: layer === "far" ? `translateY(-50%) scale(${HERO_BG_SCALE})` : "translateY(-50%)",
+            filter: layer === "far" ? "blur(18px) brightness(0.4) saturate(1.2)" : "blur(10px) brightness(0.55) saturate(1.15)",
+          }}
+        />
+      ))}
+      {/* Black vignette from the wheel side, over the blurred backdrop and under
+          the sharp art: the backdrop doesn't need to fill the screen sideways,
+          it fades to black around the wheel. */}
+      <div
         style={{
-          // Blurred backdrop drawn at a quarter size and scaled up: blurring
-          // 320×200 pixels is ~16× cheaper than the full screen, and looks the same.
           position: "absolute",
-          left: "37.5%",
-          top: "37.5%",
-          width: "25%",
-          height: "25%",
-          objectFit: "cover",
-          filter: "blur(7px) brightness(0.42) saturate(1.2)",
-          transform: "scale(4.48)",
+          inset: 0,
+          pointerEvents: "none",
+          background: `linear-gradient(to ${flip ? "right" : "left"}, rgba(0,0,0,${WHEEL_VIGNETTE[0]}) 0%, rgba(0,0,0,${WHEEL_VIGNETTE[1]}) ${(ring * 100).toFixed(1)}%, rgba(0,0,0,${WHEEL_VIGNETTE[2]}) ${((ring + WHEEL_VIGNETTE_WIDTH / 2) * 100).toFixed(1)}%, transparent ${((ring + WHEEL_VIGNETTE_WIDTH) * 100).toFixed(1)}%)`,
         }}
       />
       <FallbackImg
@@ -311,23 +353,34 @@ const Hero = memo(function Hero({ game, flip, heroScale }: { game: GameEntry | u
         className="dw-hero"
         srcs={srcs}
         style={{
-          // Vertically centred on the screen, anchored to the art side.
-          position: "absolute",
-          top: "50%",
+          // Sits above centre (centred at 38% of the height), anchored to the
+          // art side, leaving the bottom for the game info and corner text.
+          ...artBox,
           transform: "translateY(-50%)",
-          [flip ? "right" : "left"]: 0,
-          width: `${heroScale}%`,
-          maxHeight: "92%",
-          objectFit: "contain",
-          objectPosition: flip ? "right center" : "left center",
-          WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, #000 30%, #000 70%, transparent 100%), linear-gradient(to ${flip ? "left" : "right"}, #000 72%, transparent 100%)`,
+          WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, transparent 3%, #000 30%, #000 70%, transparent 97%, transparent 100%), ${sideFade}`,
           WebkitMaskComposite: "source-in",
+          // Some hero art has a light 1–2px border, and a scaled, half-pixel-
+          // positioned image can leak its edge row past the mask: drawn as a
+          // thin bright line against the blurred backdrop. Never draw the edge.
+          clipPath: `inset(${HERO_EDGE_CLIP_PX}px)`,
         }}
       />
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, #000a 0%, transparent 40%)", pointerEvents: "none" }} />
+      <div style={{ position: "absolute", inset: 0, background: HERO_BOTTOM_VIGNETTE, pointerEvents: "none" }} />
     </>
   );
 });
+
+/** Timestamps before Steam existed (Sept 2003) are placeholders, not real plays. */
+const STEAM_EPOCH = 1_062_000_000;
+
+/** Whole days since a Steam timestamp (seconds), by calendar day. */
+function daysSince(rt: number): number {
+  const d = new Date(rt * 1000);
+  const now = new Date();
+  const a = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const b = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return Math.max(0, Math.round((b - a) / 86400000));
+}
 
 /** `value`, but only after it has stopped changing for `ms`. */
 function useSettled<T>(value: T, ms: number): T {
@@ -737,13 +790,24 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
     popupTimer.current = setTimeout(() => setPopup((p) => ({ ...p, show: false })), LETTER_POPUP_MS);
   }, [sel, alpha, letters]);
 
+  // Playtime and achievements show for the resting selection only (like
+  // Steam's own achievements line): the name changes as you spin, the details
+  // fade in once the wheel stops on a game.
+  const infoAppid = useSettled(current?.appid, ACHIEVEMENTS_DELAY_MS);
+  const infoReady = !!current && infoAppid === current.appid;
+  // Friends in this game right now, read once the wheel rests on it.
+  const friends = useMemo(() => (infoReady && current ? friendsInGame(current.appid) : null), [infoReady, current?.appid]);
+
   // Achievements for the resting selection only.
-  const [ach, setAch] = useState<AchievementProgress | null>(null);
+  const [extra, setExtra] = useState<AppExtra | null>(null);
+  const ach = extra?.ach ?? null;
+  // Library overview first; the app details fill in what it lacks (non-Steam shortcuts).
+  const lastPlayedAt = Math.max(current?.lastPlayed ?? 0, extra?.lastPlayed ?? 0);
   useEffect(() => {
-    setAch(null);
+    setExtra(null);
     if (!current) return;
     let unsub = () => {};
-    const tm = setTimeout(() => (unsub = subscribeAchievements(current.appid, setAch)), ACHIEVEMENTS_DELAY_MS);
+    const tm = setTimeout(() => (unsub = subscribeAppExtra(current.appid, setExtra)), ACHIEVEMENTS_DELAY_MS);
     return () => {
       clearTimeout(tm);
       unsub();
@@ -866,9 +930,10 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
              positioning (translateY(-50%)) and make it jump into place. */
           @keyframes dwFade { from { opacity: 0; } to { opacity: 1; } }
           .dw-hero { animation: dwFade 220ms ease-out; }
+          .dw-info { animation: dwFade 200ms ease-out; }
         `}</style>
 
-        <Hero game={games[heroSel]} flip={flip} heroScale={s.heroScale} />
+        <Hero game={games[heroSel]} flip={flip} heroScale={s.heroScale} wheelSizePct={s.wheelSizePct} />
 
         <div
           style={{
@@ -936,16 +1001,16 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
                 letterSpacing: "0.08em",
               }}
             >
-              <span style={{ color: s.accentColor }}>
-                {current.name.toUpperCase()} · {t.playtime(Number(current.overview?.minutes_playtime_forever ?? 0))}
-              </span>
-              {ach && (
-                <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#c8d1dc" }}>
-                  STEAM ACHIEVEMENTS {ach.achieved}/{ach.total}
-                  <span style={{ width: 80, height: 4, borderRadius: 2, background: "#ffffff33", overflow: "hidden" }}>
-                    <span style={{ display: "block", height: "100%", width: `${(ach.achieved / ach.total) * 100}%`, background: s.accentColor }} />
-                  </span>
-                </span>
+              <span data-dw="title" style={{ color: s.accentColor, fontSize: 20, letterSpacing: "0.04em" }}>{current.name.toUpperCase()}</span>
+              {infoReady && (
+                <InfoRow
+                  key={`info-${current.appid}`}
+                  playtime={t.playtimeShort(Math.max(overviewMinutes(current.overview), extra?.minutes ?? 0))}
+                  lastPlayed={lastPlayedAt > STEAM_EPOCH ? t.lastPlayed(daysSince(lastPlayedAt)) : null}
+                  ach={ach}
+                  friends={friends ? t.friendsPlaying(friends) : null}
+                  accent={s.accentColor}
+                />
               )}
             </div>
           )}

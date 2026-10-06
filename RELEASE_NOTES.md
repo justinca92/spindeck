@@ -1,5 +1,33 @@
 # Release notes
 
+## 1.3.1
+
+### What's new in 1.3.1
+
+**New**
+- ℹ️ **Game info at a glance.** Stop on a game and one line fades in under its name: ⏱ total playtime · 🕒 when you last played · 🏆 achievements with a progress bar · 👥 how many friends are playing it right now (only shows when someone is).
+
+**Changed**
+- 🔠 **Bigger game title**, so the selected game reads at a glance.
+- 🖼️ **Hero art sits a little higher and further from the wheel.** It's no longer dead centre, it's slightly smaller so less of it is cut off at the screen edge, and it fades out before the wheel, so the inside of the wheel stays clear. (If you changed Hero art size yourself, your setting is kept.)
+- 🌑 **Darker around the wheel.** The background fades toward black on the wheel's side, so the capsules stand out.
+- 🌒 **Darker fade along the bottom**, so the game info, "Today's game?" and your corner text stay easy to read, even on bright art.
+
+**Fixed**
+- 🕹️ **Non-Steam games showed "Not played yet"** on the wheel even though their game page shows playtime.
+- 🌫️ **The blurred background now lines up with the hero art**, so the art melts into it instead of meeting a separately zoomed copy.
+- ✨ **A thin light line could show around some games' hero art**, between the art and the blurred background.
+
+**Install:** Decky → Developer → Install Plugin from URL →
+https://github.com/justinca92/spindeck/releases/download/v1.3.1/spindeck-1.3.1.zip
+
+New here? See the [README](https://github.com/justinca92/spindeck#readme) for the full feature list.
+
+---
+Tested on Steam Deck OLED in game mode. Bugs and ideas: [Issues](https://github.com/justinca92/spindeck/issues)
+Free and open source. If you enjoy it: [Ko-fi](https://ko-fi.com/jhw0806) ☕
+Built with AI assistance (Claude); designed, tested and tuned on-device by justinca92.
+
 ## 1.3.0
 
 ### What's new in 1.3.0

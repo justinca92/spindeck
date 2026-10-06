@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.1 — 2026-10-05
+
+### Added
+- **Game info line with icons** under the title, fading in once the wheel rests on a game (after `ACHIEVEMENTS_DELAY_MS`), instead of the playtime changing next to the name on every step: ⏱ total playtime · 🕒 last played (today / yesterday / N days / weeks / months / years ago, by calendar day; timestamps before Steam existed are ignored) · 🏆 achievements with a small progress bar (only for games with achievements) · 👥 friends in this game right now, in Steam's in-game green (only when at least one). Line icons are inline SVG, so they look the same whatever fonts the Deck has.
+- **Playtime and last played for non-Steam games.** Their library overview reports 0 minutes (the game page reads Steam's app details instead), so the resting game's app details, already fetched for achievements, now also fill in playtime and last played (`nPlaytimeForever` and similar, `rtLastTimePlayed`; tried defensively, the details' time fields logged once as `[Spindeck:details]`). Last played also takes the later of `rt_last_time_played` and `rt_last_time_locally_played`.
+- **Friends playing** is read from Steam's friends store (`friendStore` / `g_FriendsUIApp.FriendStore`, each friend's persona game id). Not public API: read only, the store's shape is logged once (debug, `[Spindeck:friends]`), and the item is simply hidden if it can't be read.
+
+### Changed
+- **Bigger game title** under the art: 14 → 20 px.
+- **Hero art sits higher.** Its vertical centre moved from 50% to 38% of the screen height (`HERO_CENTER_PCT`), leaving the bottom for the game info and corner text.
+- **Hero art pushed away from the wheel.** Default size 105% → 95% of the screen width (saves still on 105 are moved, settings v7), and it extends 3% past the edge on the art side (`HERO_SHIFT_PCT`), keeping its centre where an 8% push would put it while cropping less, and its wheel-side fade is now measured on the screen: fully clear inside the wheel's ring, fading in over the next 22% of the width (`HERO_FADE_WIDTH`; was a fade over the image's last 28%). Follows the Wheel size setting.
+- **Blurred backdrop lines up with the hero art.** It used to be a separate full-screen zoom of the art centred on the screen, which no longer matched once the art moved up, got smaller and moved away from the wheel. It is now two blurred layers in the sharp art's own box (same anchor, centre and size): a *near* layer exactly where the art is (`blur(10px)`), so where the art fades out it melts into a blurred copy of itself, and a softer *far* layer enlarged evenly ×1.7 around the art's centre (`HERO_BG_SCALE`, `blur(18px)`) that fills the screen around it. Both are blurred at the art's own size (cheaper than a full-screen blur). An earlier 1.3.1 build stretched the backdrop unevenly, which shifted its shapes away from the art.
+- **Black vignette on the wheel side**, between the blurred backdrop and the sharp art: 80% black at the wheel's screen edge, 60% at the wheel's ring, fading out over the next 30% of the width (`WHEEL_VIGNETTE`, `WHEEL_VIGNETTE_WIDTH`; follows the Wheel size setting). The wheel's capsules stand out while a little of the art's colour stays.
+- **No thin light line around the hero art.** Some hero art has a light 1–2px border, and the scaled, half-pixel-positioned image could leak its edge row past the mask. The sharp art now trims 3px off every edge (`clip-path: inset(3px)`, `HERO_EDGE_CLIP_PX`) and its top/bottom fade starts 3% in.
+- **Stronger bottom vignette** over the art (`HERO_BOTTOM_VIGNETTE`: 92% black at the bottom edge fading out by 55% of the height, was 67% fading out by 40%), so the playtime line, "Today's game?" and the corner text read clearly on bright art.
+
 ## 1.3.0 — 2026-10-04
 
 ### Added

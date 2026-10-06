@@ -57,12 +57,12 @@ export const DEFAULTS: WheelSettings = {
   textScale: 0.7,
   wheelSizePct: 32,
   visibleCount: 11,
-  heroScale: 105,
+  heroScale: 95,
   soundEnabled: true,
   hapticEnabled: true,
   hapticLevel: 7,
   odometerTurns: 0,
-  settingsVersion: 6,
+  settingsVersion: 7,
   rawPadApi: true,
   stepDegrees: 40,
   hapticDegrees: 5,
@@ -127,6 +127,13 @@ export async function initSettings() {
     if (merged.settingsVersion < 6) {
       if ((merged.hapticLevel ?? 5) === 5) merged.hapticLevel = DEFAULTS.hapticLevel;
       merged.settingsVersion = 6;
+      needsSave = true;
+    }
+    // v7 (1.3.1): hero art moved away from the wheel; its default size went
+    // 105 → 95 so it's cropped less at the screen edge. Move saves still on the old default.
+    if (merged.settingsVersion < 7) {
+      if ((merged.heroScale ?? 105) === 105) merged.heroScale = DEFAULTS.heroScale;
+      merged.settingsVersion = 7;
       needsSave = true;
     }
     delete merged.dockedNoHaptics; // 1.3.0 test builds only
