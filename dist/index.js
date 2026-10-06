@@ -49,6 +49,7 @@ var DEFAULTS = {
   wheelSizePct: 32,
   visibleCount: 11,
   heroScale: 95,
+  layout: "side",
   soundEnabled: true,
   hapticEnabled: true,
   hapticLevel: 7,
@@ -241,6 +242,10 @@ var ko = {
   shelfCount: (n) => `게임 ${n}개`,
   display: "표시",
   heroSize: "히어로 이미지 크기",
+  layout: "휠 위치",
+  layoutDesc: "회전 트랙패드 쪽에 붙어요.",
+  layoutSide: "옆 (화면 가장자리)",
+  layoutBottom: "아래 (아래쪽 모서리)",
   pctOfWidth: "화면 너비 대비 %",
   visible: "한 화면에 보이는 게임 수",
   wheelSize: "휠 크기",
@@ -310,6 +315,10 @@ var en = {
   shelfCount: (n) => `${n} games`,
   display: "Display",
   heroSize: "Hero art size",
+  layout: "Wheel position",
+  layoutDesc: "On the side of the rotating trackpad.",
+  layoutSide: "Side (screen edge)",
+  layoutBottom: "Bottom (lower corner)",
   pctOfWidth: "% of screen width",
   visible: "Games visible at once",
   wheelSize: "Wheel size",
@@ -461,6 +470,30 @@ function openGamePage(g) {
 function overviewMinutes(o) {
   return Math.max(Number(o?.minutes_playtime_forever) || 0, Number(o?.local_per_client_data?.minutes_playtime_forever) || 0);
 }
+var achSeen = new Map;
+var loggedAchCache = false;
+function fromSteamCache(appid) {
+  try {
+    const c = appAchievementProgressCache;
+    const e = c?.m_achievementProgress?.mapCache?.get?.(appid) ?? c?.mapCache?.get?.(appid);
+    if (!loggedAchCache) {
+      loggedAchCache = true;
+      debug("ach", "steam achievement cache", { present: !!c, keys: c ? Object.keys(c).slice(0, 20) : [], sample: e });
+    }
+    if (!e)
+      return;
+    const total = Number(e.total ?? e.nTotal ?? 0);
+    const unlocked = Number(e.unlocked ?? e.nAchieved ?? 0);
+    if (!Number.isFinite(total))
+      return;
+    return total > 0 ? { achieved: unlocked, total } : null;
+  } catch {
+    return;
+  }
+}
+function cachedAchievements(appid) {
+  return achSeen.has(appid) ? achSeen.get(appid) : fromSteamCache(appid);
+}
 var MINUTE_FIELDS = ["nPlaytimeForever", "nPlaytime", "unPlaytimeForever", "nMinutesPlaytimeForever", "minutes_playtime_forever"];
 var LAST_FIELDS = ["rtLastTimePlayed", "rtLastTimeLocallyPlayed", "rt_last_time_played"];
 var loggedDetails = false;
@@ -488,8 +521,11 @@ function subscribeAppExtra(appid, cb) {
       }
       const a = details?.achievements;
       const total = a?.nTotal ?? 0;
+      const ach = total > 0 ? { achieved: a?.nAchieved ?? 0, total } : cachedAchievements(appid) ?? null;
+      if (total > 0)
+        achSeen.set(appid, ach);
       cb({
-        ach: total > 0 ? { achieved: a?.nAchieved ?? 0, total } : null,
+        ach,
         minutes: firstNumber(details, MINUTE_FIELDS),
         lastPlayed: firstNumber(details, LAST_FIELDS)
       });
@@ -1412,7 +1448,7 @@ var CIRCLE_START_DELAY_MS = 500;
 var WINDOW_REFOCUS_DELAY_MS = 800;
 var HAPTIC_MUTE_AFTER_B_MS = 500;
 var HERO_SETTLE_MS = 150;
-var ACHIEVEMENTS_DELAY_MS = 200;
+var DETAILS_DELAY_MS = 60;
 var WHEEL_FOLLOW_TAU_MS = 55;
 var WHEEL_MAX_LAG = 2;
 var FRAME_FALLBACK_MS = 40;
@@ -1448,6 +1484,14 @@ var HERO_EDGE_CLIP_PX = 3;
 var HERO_BG_SCALE = 1.7;
 var WHEEL_VIGNETTE_WIDTH = 0.3;
 var WHEEL_VIGNETTE = [0.8, 0.6, 0.25];
+var INFO_ROW_HEIGHT = 18;
+var INFO_MAX_WIDTH_PCT = 58;
+var BOTTOM_WHEEL_X = 0.3;
+var BOTTOM_SELECTED_Y = 0.7;
+var BOTTOM_SELECTED_GAP_DEG = 3.5;
+var BOTTOM_TITLE_GAP_PX = 14;
+var BOTTOM_TITLE_MAX_WIDTH_PCT = 44;
+var BOTTOM_LAYOUT_WHEEL_VIGNETTE = "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.75) 28%, rgba(0,0,0,0.35) 48%, transparent 66%)";
 
 // src/WheelPage.tsx
 var BASE_CAPSULE_W = 80;
@@ -1546,15 +1590,22 @@ class WheelMotion {
     this.raf = raf(frame);
   }
 }
+function wheelGeom(layout, flip, W, H, wheelSizePct) {
+  const R = W * (wheelSizePct / 100);
+  if (layout === "bottom") {
+    return { cx: W * (flip ? BOTTOM_WHEEL_X : 1 - BOTTOM_WHEEL_X), cy: H * BOTTOM_SELECTED_Y + R, R };
+  }
+  return { cx: flip ? -W * 0.02 : W * 1.02, cy: H / 2, R };
+}
 var WheelRing = memo(function WheelRing(p) {
   const { games, sel, motion, W, H, flip } = p;
   const n = games.length;
   const [vis, setVis] = useState(motion.pos);
   useEffect(() => motion.subscribe(setVis), [motion]);
-  const cx = flip ? -W * 0.02 : W * 1.02;
-  const cy = H / 2;
-  const R = W * (p.wheelSizePct / 100);
-  const visibleHalfAngle = Math.asin(Math.min(1, H / 2 / R)) * 0.92;
+  const bottom = p.layout === "bottom";
+  const { cx, cy, R } = wheelGeom(p.layout, flip, W, H, p.wheelSizePct);
+  const visibleHalfAngle = bottom ? (Math.PI / 2 - Math.asin(Math.max(-1, Math.min(1, (cy - H) / R)))) * 0.92 : Math.asin(Math.min(1, H / 2 / R)) * 0.92;
+  const gapRad = bottom ? BOTTOM_SELECTED_GAP_DEG * Math.PI / 180 : 0;
   const visibleEachSide = Math.max(1, Math.floor((p.visibleCount - 1) / 2));
   const spacingRad = visibleHalfAngle / visibleEachSide;
   const capW = BASE_CAPSULE_W * p.capsuleScale;
@@ -1576,7 +1627,8 @@ var WheelRing = memo(function WheelRing(p) {
     const idx = ((sel + base + off) % n + n) % n;
     const g = games[idx];
     const rel = off - frac;
-    const theta = flip ? -rel * spacingRad : Math.PI + rel * spacingRad;
+    const phi = rel * spacingRad + Math.max(-1, Math.min(1, rel)) * gapRad;
+    const theta = bottom ? Math.PI / 2 - phi : flip ? -rel * spacingRad : Math.PI + rel * spacingRad;
     const x = cx + R * Math.cos(theta);
     const y = cy - R * Math.sin(theta);
     const dist = Math.abs(rel);
@@ -1590,8 +1642,8 @@ var WheelRing = memo(function WheelRing(p) {
         position: "absolute",
         left: 0,
         top: 0,
-        transform: flip ? `translate(${x}px, ${y}px) translate(calc(-100% + ${capW / 2}px), -50%) scale(${scale})` : `translate(${x}px, ${y}px) translate(${-capW / 2}px, -50%) scale(${scale})`,
-        transformOrigin: flip ? "right center" : "left center",
+        transform: bottom ? `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${(phi * 180 / Math.PI).toFixed(2)}deg) scale(${scale})` : flip ? `translate(${x}px, ${y}px) translate(calc(-100% + ${capW / 2}px), -50%) scale(${scale})` : `translate(${x}px, ${y}px) translate(${-capW / 2}px, -50%) scale(${scale})`,
+        transformOrigin: bottom ? "center" : flip ? "right center" : "left center",
         flexDirection: flip ? "row-reverse" : "row",
         display: "flex",
         alignItems: "center",
@@ -1621,7 +1673,7 @@ var WheelRing = memo(function WheelRing(p) {
         opacity: selected ? 0 : 1 - shade,
         willChange: "opacity"
       }
-    })), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    })), !bottom && /* @__PURE__ */ window.SP_REACT.createElement("div", {
       style: {
         maxWidth: Math.max(200, 300 * p.textScale),
         fontSize: (selected ? BASE_TITLE_PX : BASE_TITLE_PX_SIDE) * p.textScale,
@@ -1643,7 +1695,8 @@ var WheelRing = memo(function WheelRing(p) {
     style: { position: "absolute", inset: 0 }
   }, items);
 });
-var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct }) {
+var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout }) {
+  const bottom = layout === "bottom";
   if (!game)
     return null;
   const srcs = [...game.hero, ...game.capsule];
@@ -1651,7 +1704,16 @@ var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct }) {
   const start = 1 + HERO_SHIFT_PCT / 100 - w;
   const ring = wheelSizePct / 100 - 0.02;
   const at = (x) => `${Math.max(0, Math.min(100, (x - start) / w * 100)).toFixed(1)}%`;
-  const artBox = {
+  const lift = bottom ? "" : "translateY(-50%)";
+  const artBox = bottom ? {
+    position: "absolute",
+    top: -HERO_EDGE_CLIP_PX,
+    left: -HERO_EDGE_CLIP_PX,
+    width: `calc(100% + ${HERO_EDGE_CLIP_PX * 2}px)`,
+    maxHeight: "92%",
+    objectFit: "cover",
+    objectPosition: "center top"
+  } : {
     position: "absolute",
     top: `${HERO_CENTER_PCT}%`,
     [flip ? "right" : "left"]: `-${HERO_SHIFT_PCT}%`,
@@ -1660,7 +1722,8 @@ var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct }) {
     objectFit: "contain",
     objectPosition: flip ? "right center" : "left center"
   };
-  const sideFade = `linear-gradient(to ${flip ? "right" : "left"}, transparent ${at(ring)}, #000 ${at(ring + HERO_FADE_WIDTH)})`;
+  const sideFade = bottom ? "linear-gradient(#000, #000)" : `linear-gradient(to ${flip ? "right" : "left"}, transparent ${at(ring)}, #000 ${at(ring + HERO_FADE_WIDTH)})`;
+  const vFade = bottom ? "#000 0%, #000 58%, transparent 97%, transparent 100%" : "transparent 0%, transparent 3%, #000 30%, #000 70%, transparent 97%, transparent 100%";
   return /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, ["far", "near"].map((layer) => /* @__PURE__ */ window.SP_REACT.createElement(FallbackImg, {
     key: `bg-${layer}-${game.appid}`,
     className: "dw-hero",
@@ -1668,7 +1731,7 @@ var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct }) {
     style: {
       ...artBox,
       transformOrigin: "center",
-      transform: layer === "far" ? `translateY(-50%) scale(${HERO_BG_SCALE})` : "translateY(-50%)",
+      transform: layer === "far" ? `${lift} scale(${HERO_BG_SCALE})` : lift || "none",
       filter: layer === "far" ? "blur(18px) brightness(0.4) saturate(1.2)" : "blur(10px) brightness(0.55) saturate(1.15)"
     }
   })), /* @__PURE__ */ window.SP_REACT.createElement("div", {
@@ -1676,7 +1739,7 @@ var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct }) {
       position: "absolute",
       inset: 0,
       pointerEvents: "none",
-      background: `linear-gradient(to ${flip ? "right" : "left"}, rgba(0,0,0,${WHEEL_VIGNETTE[0]}) 0%, rgba(0,0,0,${WHEEL_VIGNETTE[1]}) ${(ring * 100).toFixed(1)}%, rgba(0,0,0,${WHEEL_VIGNETTE[2]}) ${((ring + WHEEL_VIGNETTE_WIDTH / 2) * 100).toFixed(1)}%, transparent ${((ring + WHEEL_VIGNETTE_WIDTH) * 100).toFixed(1)}%)`
+      background: bottom ? BOTTOM_LAYOUT_WHEEL_VIGNETTE : `linear-gradient(to ${flip ? "right" : "left"}, rgba(0,0,0,${WHEEL_VIGNETTE[0]}) 0%, rgba(0,0,0,${WHEEL_VIGNETTE[1]}) ${(ring * 100).toFixed(1)}%, rgba(0,0,0,${WHEEL_VIGNETTE[2]}) ${((ring + WHEEL_VIGNETTE_WIDTH / 2) * 100).toFixed(1)}%, transparent ${((ring + WHEEL_VIGNETTE_WIDTH) * 100).toFixed(1)}%)`
     }
   }), /* @__PURE__ */ window.SP_REACT.createElement(FallbackImg, {
     key: `fg-${game.appid}`,
@@ -1684,10 +1747,10 @@ var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct }) {
     srcs,
     style: {
       ...artBox,
-      transform: "translateY(-50%)",
-      WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, transparent 3%, #000 30%, #000 70%, transparent 97%, transparent 100%), ${sideFade}`,
+      transform: lift || "none",
+      WebkitMaskImage: `linear-gradient(to bottom, ${vFade}), ${sideFade}`,
       WebkitMaskComposite: "source-in",
-      clipPath: `inset(${HERO_EDGE_CLIP_PX}px)`
+      clipPath: bottom ? "none" : `inset(${HERO_EDGE_CLIP_PX}px)`
     }
   }), /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { position: "absolute", inset: 0, background: HERO_BOTTOM_VIGNETTE, pointerEvents: "none" }
@@ -2042,19 +2105,21 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     clearTimeout(popupTimer.current);
     popupTimer.current = setTimeout(() => setPopup((p) => ({ ...p, show: false })), LETTER_POPUP_MS);
   }, [sel, alpha, letters]);
-  const infoAppid = useSettled(current?.appid, ACHIEVEMENTS_DELAY_MS);
-  const infoReady = !!current && infoAppid === current.appid;
-  const friends = useMemo(() => infoReady && current ? friendsInGame(current.appid) : null, [infoReady, current?.appid]);
+  const infoReady = !!current;
+  const friends = useMemo(() => current ? friendsInGame(current.appid) : null, [current?.appid]);
   const [extra, setExtra] = useState(null);
-  const ach = extra?.ach ?? null;
-  const lastPlayedAt = Math.max(current?.lastPlayed ?? 0, extra?.lastPlayed ?? 0);
+  const ex = current && extra?.appid === current.appid ? extra : null;
+  const ach = ex ? ex.ach : current ? cachedAchievements(current.appid) ?? null : null;
+  const lastPlayedAt = Math.max(current?.lastPlayed ?? 0, ex?.lastPlayed ?? 0);
   useEffect(() => {
-    setExtra(null);
     if (!current)
       return;
+    const appid = current.appid;
     let unsub = () => {};
-    const tm = setTimeout(() => unsub = subscribeAppExtra(current.appid, setExtra), ACHIEVEMENTS_DELAY_MS);
+    let alive = true;
+    const tm = setTimeout(() => unsub = subscribeAppExtra(appid, (x) => alive && setExtra({ ...x, appid })), DETAILS_DELAY_MS);
     return () => {
+      alive = false;
       clearTimeout(tm);
       unsub();
     };
@@ -2096,6 +2161,17 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     consume(e);
   };
   const flip = s.rotatePad === "left";
+  const layout = s.layout === "bottom" ? "bottom" : "side";
+  const bottom = layout === "bottom";
+  const geom = wheelGeom(layout, flip, size.w, size.h, s.wheelSizePct);
+  const renderInfo = () => current && infoReady ? /* @__PURE__ */ window.SP_REACT.createElement(InfoRow, {
+    key: `info-${current.appid}`,
+    playtime: t.playtimeShort(Math.max(overviewMinutes(current.overview), ex?.minutes ?? 0)),
+    lastPlayed: lastPlayedAt > STEAM_EPOCH ? t.lastPlayed(daysSince(lastPlayedAt)) : null,
+    ach,
+    friends: friends ? t.friendsPlaying(friends) : null,
+    accent: s.accentColor
+  }) : null;
   const latest = useRef({});
   latest.current = {
     dir: onDir,
@@ -2167,22 +2243,23 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
              positioning (translateY(-50%)) and make it jump into place. */
           @keyframes dwFade { from { opacity: 0; } to { opacity: 1; } }
           .dw-hero { animation: dwFade 220ms ease-out; }
-          .dw-info { animation: dwFade 200ms ease-out; }
         `), /* @__PURE__ */ window.SP_REACT.createElement(Hero, {
     game: games[heroSel],
     flip,
     heroScale: s.heroScale,
-    wheelSizePct: s.wheelSizePct
+    wheelSizePct: s.wheelSizePct,
+    layout
   }), /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: {
       position: "absolute",
       inset: 0,
-      transformOrigin: `${flip ? -size.w * 0.02 : size.w * 1.02}px ${size.h / 2}px`,
+      transformOrigin: `${geom.cx}px ${geom.cy}px`,
       transform: `rotate(${ringFx.rot}deg)`,
       opacity: ringFx.op,
       transition: ringFx.ms ? `transform ${ringFx.ms}ms ${ringFx.ease}, opacity ${ringFx.ms}ms ${ringFx.ease}` : "none"
     }
   }, /* @__PURE__ */ window.SP_REACT.createElement(WheelRing, {
+    layout,
     games,
     sel,
     motion,
@@ -2194,7 +2271,36 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     capsuleScale: s.capsuleScale,
     textScale: s.textScale,
     accentColor: s.accentColor
-  })), alpha && popup.letter && /* @__PURE__ */ window.SP_REACT.createElement(LetterPopup, {
+  }), bottom && current && /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: {
+      position: "absolute",
+      left: geom.cx,
+      top: geom.cy - geom.R - BASE_CAPSULE_H * s.capsuleScale / 2 - BOTTOM_TITLE_GAP_PX,
+      transform: "translate(-50%, -100%)",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 6,
+      fontWeight: 700,
+      textShadow: "0 2px 8px #000",
+      pointerEvents: "none"
+    }
+  }, /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    "data-dw": "title",
+    style: {
+      maxWidth: `${BOTTOM_TITLE_MAX_WIDTH_PCT}vw`,
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      color: s.accentColor,
+      fontSize: 22,
+      fontWeight: 800,
+      letterSpacing: "0.04em"
+    }
+  }, current.name.toUpperCase()), /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    "data-dw": "info-slot",
+    style: { height: INFO_ROW_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", whiteSpace: "nowrap" }
+  }, renderInfo()))), alpha && popup.letter && /* @__PURE__ */ window.SP_REACT.createElement(LetterPopup, {
     letter: popup.letter,
     count: letterCounts.get(popup.letter) ?? 0,
     show: popup.show,
@@ -2236,17 +2342,13 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       fontWeight: 700,
       letterSpacing: "0.08em"
     }
-  }, /* @__PURE__ */ window.SP_REACT.createElement("span", {
+  }, !bottom && /* @__PURE__ */ window.SP_REACT.createElement("span", {
     "data-dw": "title",
-    style: { color: s.accentColor, fontSize: 20, letterSpacing: "0.04em" }
-  }, current.name.toUpperCase()), infoReady && /* @__PURE__ */ window.SP_REACT.createElement(InfoRow, {
-    key: `info-${current.appid}`,
-    playtime: t.playtimeShort(Math.max(overviewMinutes(current.overview), extra?.minutes ?? 0)),
-    lastPlayed: lastPlayedAt > STEAM_EPOCH ? t.lastPlayed(daysSince(lastPlayedAt)) : null,
-    ach,
-    friends: friends ? t.friendsPlaying(friends) : null,
-    accent: s.accentColor
-  })), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: { color: s.accentColor, fontSize: 20, letterSpacing: "0.04em", maxWidth: `${INFO_MAX_WIDTH_PCT}vw`, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }
+  }, current.name.toUpperCase()), !bottom && /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    "data-dw": "info-slot",
+    style: { height: INFO_ROW_HEIGHT, display: "flex", alignItems: "center", maxWidth: `${INFO_MAX_WIDTH_PCT}vw` }
+  }, renderInfo())), /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }
   }, s.ownerText), s.subtitleText && /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { fontSize: 16, opacity: 0.8, marginTop: 4 }
@@ -2575,6 +2677,9 @@ function HomeSwitch({ original }) {
   }));
 }
 var SPACER_ATTR = "data-spindeck-spacer";
+function screenTop(p) {
+  return p.host.getBoundingClientRect().top;
+}
 function isScrollableY(view, el) {
   const o = view.getComputedStyle(el).overflowY;
   return (o === "auto" || o === "scroll") && el.scrollHeight > el.clientHeight + 40;
@@ -2595,6 +2700,7 @@ function homeParts(host) {
     return null;
   const sectionsBlock = kids[kids.length - 1];
   const parts = {
+    host,
     vs,
     sectionsBlock,
     above: kids.slice(0, -1).filter((el) => el.children.length > 0),
@@ -2607,7 +2713,7 @@ var rowExt = new WeakMap;
 function sectionsOffset(p) {
   const target = p.header ?? p.sectionsBlock;
   const vsTop = p.vs.getBoundingClientRect().top;
-  const inset = Math.max(0, topBarBottom(p.vs.ownerDocument) - vsTop);
+  const inset = Math.max(0, topBarBottom(p.vs.ownerDocument) - (vsTop - screenTop(p)));
   const grown = p.header ? rowExt.get(p.header)?.ext ?? 0 : 0;
   return Math.max(0, Math.round(target.getBoundingClientRect().top + grown - vsTop + p.vs.scrollTop - inset));
 }
@@ -2709,7 +2815,8 @@ function syncHeader(keeper, doc, screen, host) {
   const strips = headerStrips(doc, HEADER_RESCAN_MS);
   ensureClearStyle(doc);
   const releaseRow = (row) => row && rowExt.delete(row);
-  const row = homeParts(host)?.header ?? null;
+  const parts = homeParts(host);
+  const row = parts?.header ?? null;
   if (screen === "wheel") {
     releaseRow(row);
     keeper.keepOnly(new Set(strips));
@@ -2719,8 +2826,9 @@ function syncHeader(keeper, doc, screen, host) {
   }
   const rect = row?.getBoundingClientRect();
   const st = row ? rowExt.get(row) : undefined;
-  const contentTop = rect ? rect.top + (st?.ext ?? 0) : -1;
-  const rowVisible = !!rect && rect.bottom > 0;
+  const top0 = parts ? screenTop(parts) : 0;
+  const contentTop = rect ? rect.top - top0 + (st?.ext ?? 0) : -1;
+  const rowVisible = !!rect && rect.bottom - top0 > 0;
   if (!learnedBarLook()) {
     releaseRow(row);
     keeper.keepOnly(new Set);
@@ -2992,8 +3100,9 @@ function WheelHome({ original }) {
         return;
       raf = view.requestAnimationFrame(() => {
         raf = 0;
-        const row = homeParts(sections.current)?.header;
-        const away = !row || row.getBoundingClientRect().bottom <= 0;
+        const p = homeParts(sections.current);
+        const row = p?.header;
+        const away = !p || !row || row.getBoundingClientRect().bottom - screenTop(p) <= 0;
         if (away !== rowAway) {
           rowAway = away;
           sync();
@@ -3081,7 +3190,7 @@ function WheelHome({ original }) {
 // src/links.ts
 var KOFI_URL = "https://ko-fi.com/jhw0806";
 var REPO_URL = "https://github.com/justinca92/spindeck";
-var PLUGIN_VERSION = "1.3.1";
+var PLUGIN_VERSION = "1.4.0";
 
 // src/index.tsx
 var ROUTE = "/spindeck";
@@ -3266,7 +3375,16 @@ function QuickAccessPanel() {
     s
   })), /* @__PURE__ */ window.SP_REACT.createElement(PanelSection, {
     title: t.display
-  }, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(SliderField, {
+  }, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(DropdownItem, {
+    label: t.layout,
+    description: t.layoutDesc,
+    rgOptions: [
+      { data: "side", label: t.layoutSide },
+      { data: "bottom", label: t.layoutBottom }
+    ],
+    selectedOption: s.layout === "bottom" ? "bottom" : "side",
+    onChange: (o) => updateSettings({ layout: o.data })
+  })), /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(SliderField, {
     label: t.heroSize,
     description: t.pctOfWidth,
     min: 40,

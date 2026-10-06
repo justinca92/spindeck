@@ -170,6 +170,40 @@ export function overviewMinutes(o: any): number {
   return Math.max(Number(o?.minutes_playtime_forever) || 0, Number(o?.local_per_client_data?.minutes_playtime_forever) || 0);
 }
 
+// Achievement progress, fastest first:
+// 1. what we already got from this game's details earlier in this session;
+// 2. Steam's own in-memory achievement-progress cache (what the library uses
+//    for its achievement badges): no request, available immediately;
+// 3. the app details feed (subscribeAppExtra), which can take a while because
+//    Steam loads the game's achievement data on demand.
+// Runtime only, never saved.
+declare const appAchievementProgressCache: any;
+const achSeen = new Map<number, AchievementProgress | null>();
+let loggedAchCache = false;
+
+function fromSteamCache(appid: number): AchievementProgress | null | undefined {
+  try {
+    const c = appAchievementProgressCache;
+    const e = c?.m_achievementProgress?.mapCache?.get?.(appid) ?? c?.mapCache?.get?.(appid);
+    if (!loggedAchCache) {
+      loggedAchCache = true;
+      debug("ach", "steam achievement cache", { present: !!c, keys: c ? Object.keys(c).slice(0, 20) : [], sample: e });
+    }
+    if (!e) return undefined;
+    const total = Number(e.total ?? e.nTotal ?? 0);
+    const unlocked = Number(e.unlocked ?? e.nAchieved ?? 0);
+    if (!Number.isFinite(total)) return undefined;
+    return total > 0 ? { achieved: unlocked, total } : null;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Achievement progress we can show right away (undefined = not known yet). */
+export function cachedAchievements(appid: number): AchievementProgress | null | undefined {
+  return achSeen.has(appid) ? achSeen.get(appid) : fromSteamCache(appid);
+}
+
 /** What the resting game's details add: achievements, and for non-Steam shortcuts the playtime. */
 export interface AppExtra {
   ach: AchievementProgress | null;
@@ -213,8 +247,12 @@ export function subscribeAppExtra(appid: number, cb: (x: AppExtra) => void): () 
       }
       const a = details?.achievements;
       const total = a?.nTotal ?? 0;
+      // Details can arrive before Steam has loaded achievements (nTotal 0 at
+      // first): keep what the caches knew rather than blanking it.
+      const ach = total > 0 ? { achieved: a?.nAchieved ?? 0, total } : cachedAchievements(appid) ?? null;
+      if (total > 0) achSeen.set(appid, ach);
       cb({
-        ach: total > 0 ? { achieved: a?.nAchieved ?? 0, total } : null,
+        ach,
         minutes: firstNumber(details, MINUTE_FIELDS),
         lastPlayed: firstNumber(details, LAST_FIELDS),
       });

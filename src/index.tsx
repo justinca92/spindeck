@@ -261,6 +261,18 @@ function QuickAccessPanel() {
 
       <PanelSection title={t.display}>
         <PanelSectionRow>
+          <DropdownItem
+            label={t.layout}
+            description={t.layoutDesc}
+            rgOptions={[
+              { data: "side", label: t.layoutSide },
+              { data: "bottom", label: t.layoutBottom },
+            ]}
+            selectedOption={s.layout === "bottom" ? "bottom" : "side"}
+            onChange={(o) => updateSettings({ layout: o.data as "side" | "bottom" })}
+          />
+        </PanelSectionRow>
+        <PanelSectionRow>
           <SliderField
             label={t.heroSize}
             description={t.pctOfWidth}

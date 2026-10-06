@@ -27,6 +27,7 @@ export interface WheelSettings {
   wheelSizePct: number;       // wheel radius as % of screen width
   visibleCount: number;       // how many games fit on screen at once
   heroScale: number;          // sharp hero art width as % of screen width
+  layout: "side" | "bottom";  // wheel on the screen edge, or rising from the bottom
   soundEnabled: boolean;
   hapticEnabled: boolean;
   hapticLevel: number; // 1–9 (5 = Steam's radial-menu strength); default 7     // tick on the rotating trackpad, like Steam's radial menu
@@ -58,6 +59,7 @@ export const DEFAULTS: WheelSettings = {
   wheelSizePct: 32,
   visibleCount: 11,
   heroScale: 95,
+  layout: "side",
   soundEnabled: true,
   hapticEnabled: true,
   hapticLevel: 7,

@@ -1,5 +1,32 @@
 # Release notes
 
+## 1.4.0
+
+### What's new in 1.4.0
+
+**New**
+- 🎡 **Bottom layout.** A second wheel position: the wheel rises from the bottom corner on your rotating trackpad's side, the selected game sits at the top of the arc with its name and game info just above it, and the hero art spans the full width across the top of the screen. Switch in the panel: Display → Wheel position. The side layout stays the default.
+
+**Changed**
+- ⚡ **Game info shows instantly**, together with the game's name, instead of fading in after you stop.
+- 📌 **The game title and the Ⓨ "Today's game?" button stay in place.** The info line now has its own space under the title, so they no longer jump up and down as you spin and stop.
+- ✂️ **Long game names stay on one line**, ending with "…" instead of wrapping.
+- 🏆 **Achievements show up much faster.** They're now taken from Steam's own achievement cache first, so they appear together with the playtime instead of a moment later.
+
+**Fixed**
+- 📑 **The What's New / Friends / Recommended bar no longer stacks onto Steam's top bar** (battery, Wi-Fi, profile) when you go between the wheel and those pages.
+- 🎯 **A game could briefly show the previous game's achievements** if you moved on before Steam answered.
+
+**Install:** Decky → Developer → Install Plugin from URL →
+https://github.com/justinca92/spindeck/releases/download/v1.4.0/spindeck-1.4.0.zip
+
+New here? See the [README](https://github.com/justinca92/spindeck#readme) for the full feature list.
+
+---
+Tested on Steam Deck OLED in game mode. Bugs and ideas: [Issues](https://github.com/justinca92/spindeck/issues)
+Free and open source. If you enjoy it: [Ko-fi](https://ko-fi.com/jhw0806) ☕
+Built with AI assistance (Claude); designed, tested and tuned on-device by justinca92.
+
 ## 1.3.1
 
 ### What's new in 1.3.1

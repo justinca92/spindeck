@@ -56,7 +56,19 @@ export function HomeSwitch({ original }: { original: ReactNode }) {
  * is kept in the layout but invisible, and the scroller is scrolled to the sections.
  */
 const SPACER_ATTR = "data-spindeck-spacer";
-type Parts = { vs: HTMLElement; sectionsBlock: HTMLElement; above: HTMLElement[]; header: HTMLElement | null };
+type Parts = { host: HTMLElement; vs: HTMLElement; sectionsBlock: HTMLElement; above: HTMLElement[]; header: HTMLElement | null };
+
+/**
+ * Where the sections screen's top is right now. At rest it's the top of the
+ * screen (0); during the wheel ⇄ sections slide it's anywhere. Positions that
+ * must line up with Steam's top bar are measured from here, so they come out
+ * the same mid-slide as at rest. (Measured against the viewport, the reveal
+ * done just before the slide saw the sections below the screen, thought the
+ * top bar covered nothing, and parked the tab row under Steam's bar.)
+ */
+function screenTop(p: Parts) {
+  return p.host.getBoundingClientRect().top;
+}
 
 function isScrollableY(view: any, el: HTMLElement) {
   const o = view.getComputedStyle(el).overflowY;
@@ -76,6 +88,7 @@ function homeParts(host: HTMLElement | null): Parts | null {
   if (kids.length < 2) return null;
   const sectionsBlock = kids[kids.length - 1];
   const parts: Parts = {
+    host,
     vs,
     sectionsBlock,
     above: kids.slice(0, -1).filter((el) => el.children.length > 0),
@@ -93,7 +106,9 @@ const rowExt = new WeakMap<HTMLElement, { ext: number; margin: number; pad: numb
 function sectionsOffset(p: Parts) {
   const target = p.header ?? p.sectionsBlock;
   const vsTop = p.vs.getBoundingClientRect().top;
-  const inset = Math.max(0, topBarBottom(p.vs.ownerDocument) - vsTop);
+  // Steam's bar is fixed at the top of the screen; the scroller's top is taken
+  // as it will be once the sections are in place.
+  const inset = Math.max(0, topBarBottom(p.vs.ownerDocument) - (vsTop - screenTop(p)));
   // The tab row may be grown upward by us (see syncHeader): measure where its content starts.
   const grown = p.header ? rowExt.get(p.header)?.ext ?? 0 : 0;
   return Math.max(0, Math.round(target.getBoundingClientRect().top + grown - vsTop + p.vs.scrollTop - inset));
@@ -230,7 +245,8 @@ function syncHeader(keeper: StyleKeeper, doc: Document, screen: Screen, host: HT
   const strips = headerStrips(doc, HEADER_RESCAN_MS);
   ensureClearStyle(doc);
   const releaseRow = (row: HTMLElement | null) => row && rowExt.delete(row);
-  const row = homeParts(host)?.header ?? null;
+  const parts = homeParts(host);
+  const row = parts?.header ?? null;
   if (screen === "wheel") {
     releaseRow(row);
     keeper.keepOnly(new Set(strips));
@@ -239,8 +255,11 @@ function syncHeader(keeper: StyleKeeper, doc: Document, screen: Screen, host: HT
   }
   const rect = row?.getBoundingClientRect();
   const st = row ? rowExt.get(row) : undefined;
-  const contentTop = rect ? rect.top + (st?.ext ?? 0) : -1; // where the row's own content starts
-  const rowVisible = !!rect && rect.bottom > 0;
+  // Measured from the sections screen's top (not the viewport), so a sync
+  // during the slide sizes the band as it will be at rest.
+  const top0 = parts ? screenTop(parts) : 0;
+  const contentTop = rect ? rect.top - top0 + (st?.ext ?? 0) : -1; // where the row's own content starts
+  const rowVisible = !!rect && rect.bottom - top0 > 0;
   // Learn Steam's opaque look once, from its own (uncleared) bar on the scrolled home.
   if (!learnedBarLook()) {
     releaseRow(row);
@@ -530,8 +549,9 @@ function WheelHome({ original }: { original: ReactNode }) {
       if (screen !== "sections" || raf) return;
       raf = view.requestAnimationFrame(() => {
         raf = 0;
-        const row = homeParts(sections.current)?.header;
-        const away = !row || row.getBoundingClientRect().bottom <= 0;
+        const p = homeParts(sections.current);
+        const row = p?.header;
+        const away = !p || !row || row.getBoundingClientRect().bottom - screenTop(p) <= 0;
         if (away !== rowAway) {
           rowAway = away;
           sync();

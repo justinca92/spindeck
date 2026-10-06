@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.0 — 2026-10-06
+
+### Added
+- **Bottom layout** (panel → Display → Wheel position: Side / Bottom; Side is the default and unchanged). The wheel's centre sits below the screen, 30% in from the side of the rotating trackpad (`BOTTOM_WHEEL_X`), so the top of the ring rises from the bottom edge with the selected game at its top (70% of the height, `BOTTOM_SELECTED_Y`). Same ring size and games-visible settings as the side layout; next games sit clockwise, leaning along the arc, with a little extra room either side of the selection (`BOTTOM_SELECTED_GAP_DEG`). Only the selected game's name is shown, just above it (one line, "…" past 44% of the width), with the icon info line directly under the name; the block is anchored by its bottom and the info line's height is always reserved, so the name never moves when the info fades in. The Ⓨ pill and the corner text sit in the opposite bottom corner. The hero art spans the full width from the very top of the screen (no blurred sides; a few px past every edge so a light border some art has never shows; the Hero art size slider applies to the side layout only), fading out toward the wheel, and a dark fade rises from the bottom behind the wheel (`BOTTOM_LAYOUT_WHEEL_VIGNETTE`). L1/R1's revolver swap turns around the wheel's centre in both layouts (shared `wheelGeom`).
+
+### Changed
+- **The game info line appears instantly**, together with the name, on every step, instead of fading in 0.2 s after the wheel stops. Playtime, last played, cached achievements and friends are all in memory; only what isn't cached (a game's first achievements, non-Steam playtime) fills in when Steam's app details answer (still requested only once the wheel pauses 60 ms on a game). The details are tagged with their appid, so a previous game's values never show on the next one, not even for a frame.
+- **The title and the Ⓨ roulette button stay put.** The info line's space under the title is always kept (`INFO_ROW_HEIGHT`, 18 px), so when it fades in once the wheel rests, nothing above it moves; before, the title and the Ⓨ pill jumped up by a line every time you stopped and back down as you spun.
+- **Achievements show up much faster.** Playtime and last played come from the library list already in memory, but achievements came from the game's app details, requested only once the info line appeared and loaded by Steam on demand. Now: (1) progress seen earlier in this session shows at once; (2) Steam's own in-memory achievement-progress cache (`appAchievementProgressCache`, what the library's achievement badges use) is read first, no request needed (shape logged once as `[Spindeck:ach]`); (3) the details request starts 60 ms after the wheel pauses (`DETAILS_DELAY_MS`) instead of 200 ms. A details reply that arrives with no achievements yet no longer blanks what the caches knew.
+- **Long game names stay on one line**, cut with "…" at 58% of the screen width (`INFO_MAX_WIDTH_PCT`), so a long name passing by can't push the layout around either.
+
+### Fixed
+- **The What's New / Friends / Recommended tab bar stacked onto Steam's top bar** when switching between the wheel and those pages. Both the sections' scroll position (set just before the slide, so there's no black flash) and the tab row's background band were measured against the viewport while the screen was still sliding: the reveal saw the sections below the screen, decided Steam's bar covered nothing and parked the tab row at y=0 under the bar (corrected ~0.1 s later), and the band was grown 250–800 px up behind Steam's bar until the next re-sync (up to ~0.5 s). Both are now measured from the sections screen's own top (`screenTop`), so they're right from the first frame of the slide.
+- **A late details reply could land on the next game** (e.g. its achievements showing on the game you moved to). Replies for a game you've moved past are now ignored.
+
 ## 1.3.1 — 2026-10-05
 
 ### Added

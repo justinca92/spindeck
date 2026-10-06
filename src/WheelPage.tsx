@@ -2,7 +2,7 @@ import { Focusable, GamepadButton, GamepadEvent, Navigation } from "@decky/ui";
 import { CSSProperties, memo, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "./i18n";
 import { debug } from "./log";
-import { AppExtra, GameEntry, listCollections, loadCollectionGames, loadGames, openGamePage, overviewMinutes, subscribeAppExtra } from "./games";
+import { AppExtra, cachedAchievements, GameEntry, listCollections, loadCollectionGames, loadGames, openGamePage, overviewMinutes, subscribeAppExtra } from "./games";
 import { subscribeCursorWheel, subscribeKeyboardAnalogWheel, subscribeScrollWheel } from "./padInput";
 import { getSettings, settingsLoaded, updateSettings, useSettings } from "./settings";
 import { crossedMilestone } from "./odometer";
@@ -15,7 +15,7 @@ import { findHeaderSearch } from "./steamDom";
 import { InfoRow } from "./InfoRow";
 import { friendsInGame } from "./friends";
 import {
-  ACHIEVEMENTS_DELAY_MS,
+  DETAILS_DELAY_MS,
   ARRIVAL_IGNORE_MS,
   CIRCLE_START_DELAY_MS,
   HAPTIC_MUTE_AFTER_B_MS,
@@ -51,6 +51,14 @@ import {
   HERO_BG_SCALE,
   WHEEL_VIGNETTE_WIDTH,
   WHEEL_VIGNETTE,
+  INFO_ROW_HEIGHT,
+  INFO_MAX_WIDTH_PCT,
+  BOTTOM_WHEEL_X,
+  BOTTOM_SELECTED_Y,
+  BOTTOM_SELECTED_GAP_DEG,
+  BOTTOM_TITLE_GAP_PX,
+  BOTTOM_TITLE_MAX_WIDTH_PCT,
+  BOTTOM_LAYOUT_WHEEL_VIGNETTE,
 } from "./constants";
 
 const BASE_CAPSULE_W = 80;
@@ -154,7 +162,24 @@ class WheelMotion {
   }
 }
 
+export type WheelLayout = "side" | "bottom";
+
+/**
+ * Where the wheel's circle is. Side: centre just off the screen edge, half
+ * the ring showing. Bottom: centre below the screen, between the corner and
+ * the bottom centre, so the top of the ring rises from the bottom edge with
+ * the selected game at its top.
+ */
+function wheelGeom(layout: WheelLayout, flip: boolean, W: number, H: number, wheelSizePct: number) {
+  const R = W * (wheelSizePct / 100);
+  if (layout === "bottom") {
+    return { cx: W * (flip ? BOTTOM_WHEEL_X : 1 - BOTTOM_WHEEL_X), cy: H * BOTTOM_SELECTED_Y + R, R };
+  }
+  return { cx: flip ? -W * 0.02 : W * 1.02, cy: H / 2, R };
+}
+
 interface RingProps {
+  layout: WheelLayout;
   games: GameEntry[];
   sel: number;
   motion: WheelMotion;
@@ -175,11 +200,14 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
   const [vis, setVis] = useState(motion.pos);
   useEffect(() => motion.subscribe(setVis), [motion]);
 
-  const cx = flip ? -W * 0.02 : W * 1.02;
-  const cy = H / 2;
-  const R = W * (p.wheelSizePct / 100);
-  // Spread `visibleCount` games over the part of the arc that fits on screen.
-  const visibleHalfAngle = Math.asin(Math.min(1, H / 2 / R)) * 0.92;
+  const bottom = p.layout === "bottom";
+  const { cx, cy, R } = wheelGeom(p.layout, flip, W, H, p.wheelSizePct);
+  // Spread `visibleCount` games over the part of the arc that fits on screen
+  // (side: above and below the centre; bottom: either side of the top).
+  const visibleHalfAngle = bottom
+    ? (Math.PI / 2 - Math.asin(Math.max(-1, Math.min(1, (cy - H) / R)))) * 0.92
+    : Math.asin(Math.min(1, H / 2 / R)) * 0.92;
+  const gapRad = bottom ? (BOTTOM_SELECTED_GAP_DEG * Math.PI) / 180 : 0;
   const visibleEachSide = Math.max(1, Math.floor((p.visibleCount - 1) / 2));
   const spacingRad = visibleHalfAngle / visibleEachSide;
   const capW = BASE_CAPSULE_W * p.capsuleScale;
@@ -205,8 +233,11 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
     const idx = (((sel + base + off) % n) + n) % n;
     const g = games[idx];
     const rel = off - frac; // continuous distance from the pointer
-    // Right wheel: π = pointing left at the art. Left wheel: 0 = pointing right.
-    const theta = flip ? -rel * spacingRad : Math.PI + rel * spacingRad;
+    // Next games sit clockwise from the selection.
+    // Side, right wheel: π = pointing left at the art. Left wheel: 0 = pointing right.
+    // Bottom: π/2 = straight up; a little extra room on each side of the selection.
+    const phi = rel * spacingRad + Math.max(-1, Math.min(1, rel)) * gapRad;
+    const theta = bottom ? Math.PI / 2 - phi : flip ? -rel * spacingRad : Math.PI + rel * spacingRad;
     const x = cx + R * Math.cos(theta);
     const y = cy - R * Math.sin(theta);
     const dist = Math.abs(rel);
@@ -223,10 +254,14 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
           left: 0,
           top: 0,
           // Anchor the capsule's centre on the arc; the title extends away from the art.
-          transform: flip
-            ? `translate(${x}px, ${y}px) translate(calc(-100% + ${capW / 2}px), -50%) scale(${scale})`
-            : `translate(${x}px, ${y}px) translate(${-capW / 2}px, -50%) scale(${scale})`,
-          transformOrigin: flip ? "right center" : "left center",
+          // Bottom: centred on the arc, leaning along it; no side titles (the
+          // selected game's name sits above it, drawn by the page).
+          transform: bottom
+            ? `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${((phi * 180) / Math.PI).toFixed(2)}deg) scale(${scale})`
+            : flip
+              ? `translate(${x}px, ${y}px) translate(calc(-100% + ${capW / 2}px), -50%) scale(${scale})`
+              : `translate(${x}px, ${y}px) translate(${-capW / 2}px, -50%) scale(${scale})`,
+          transformOrigin: bottom ? "center" : flip ? "right center" : "left center",
           flexDirection: flip ? "row-reverse" : "row",
           display: "flex",
           alignItems: "center",
@@ -267,7 +302,7 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
         </div>
         {/* Always rendered (opacity only) — mounting/unmounting names at the
             edge while spinning cost extra layout. */}
-          <div
+          {!bottom && <div
             style={{
               maxWidth: Math.max(200, 300 * p.textScale),
               fontSize: (selected ? BASE_TITLE_PX : BASE_TITLE_PX_SIDE) * p.textScale,
@@ -286,7 +321,7 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
             }}
           >
             {g.name}
-          </div>
+          </div>}
       </div>,
     );
   }
@@ -294,7 +329,8 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
 });
 
 /** Selected game's art, blurred background + sharp foreground. Changes only once the wheel rests. */
-const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct }: { game: GameEntry | undefined; flip: boolean; heroScale: number; wheelSizePct: number }) {
+const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout }: { game: GameEntry | undefined; flip: boolean; heroScale: number; wheelSizePct: number; layout: WheelLayout }) {
+  const bottom = layout === "bottom";
   if (!game) return null;
   const srcs = [...game.hero, ...game.capsule];
   // Pushed toward the art side (partly off-screen there) and faded out on the
@@ -304,16 +340,36 @@ const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct }: { game:
   const start = 1 + HERO_SHIFT_PCT / 100 - w; // where the image begins (wheel side)
   const ring = wheelSizePct / 100 - 0.02; // the wheel's ring (its centre sits 2% off-screen)
   const at = (x: number) => `${Math.max(0, Math.min(100, ((x - start) / w) * 100)).toFixed(1)}%`;
-  const artBox: CSSProperties = {
-    position: "absolute",
-    top: `${HERO_CENTER_PCT}%`,
-    [flip ? "right" : "left"]: `-${HERO_SHIFT_PCT}%`,
-    width: `${heroScale}%`,
-    maxHeight: "92%",
-    objectFit: "contain",
-    objectPosition: flip ? "right center" : "left center",
-  };
-  const sideFade = `linear-gradient(to ${flip ? "right" : "left"}, transparent ${at(ring)}, #000 ${at(ring + HERO_FADE_WIDTH)})`;
+  // Side: above centre, pushed away from the wheel. Bottom: across the top
+  // of the screen, above the wheel.
+  const lift = bottom ? "" : "translateY(-50%)"; // side boxes are centred on HERO_CENTER_PCT
+  // Bottom: edge to edge from the very top (no blurred sides), a few px past
+  // every screen edge so a light border some art has never shows.
+  const artBox: CSSProperties = bottom
+    ? {
+        position: "absolute",
+        top: -HERO_EDGE_CLIP_PX,
+        left: -HERO_EDGE_CLIP_PX,
+        width: `calc(100% + ${HERO_EDGE_CLIP_PX * 2}px)`,
+        maxHeight: "92%",
+        objectFit: "cover",
+        objectPosition: "center top",
+      }
+    : {
+        position: "absolute",
+        top: `${HERO_CENTER_PCT}%`,
+        [flip ? "right" : "left"]: `-${HERO_SHIFT_PCT}%`,
+        width: `${heroScale}%`,
+        maxHeight: "92%",
+        objectFit: "contain",
+        objectPosition: flip ? "right center" : "left center",
+      };
+  const sideFade = bottom
+    ? "linear-gradient(#000, #000)" // full width: no side fade
+    : `linear-gradient(to ${flip ? "right" : "left"}, transparent ${at(ring)}, #000 ${at(ring + HERO_FADE_WIDTH)})`;
+  const vFade = bottom
+    ? "#000 0%, #000 58%, transparent 97%, transparent 100%"
+    : "transparent 0%, transparent 3%, #000 30%, #000 70%, transparent 97%, transparent 100%";
   return (
     <>
       {/* Blurred backdrop in two layers, both in the sharp art's own box (same
@@ -332,7 +388,7 @@ const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct }: { game:
           style={{
             ...artBox,
             transformOrigin: "center",
-            transform: layer === "far" ? `translateY(-50%) scale(${HERO_BG_SCALE})` : "translateY(-50%)",
+            transform: layer === "far" ? `${lift} scale(${HERO_BG_SCALE})` : lift || "none",
             filter: layer === "far" ? "blur(18px) brightness(0.4) saturate(1.2)" : "blur(10px) brightness(0.55) saturate(1.15)",
           }}
         />
@@ -345,7 +401,7 @@ const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct }: { game:
           position: "absolute",
           inset: 0,
           pointerEvents: "none",
-          background: `linear-gradient(to ${flip ? "right" : "left"}, rgba(0,0,0,${WHEEL_VIGNETTE[0]}) 0%, rgba(0,0,0,${WHEEL_VIGNETTE[1]}) ${(ring * 100).toFixed(1)}%, rgba(0,0,0,${WHEEL_VIGNETTE[2]}) ${((ring + WHEEL_VIGNETTE_WIDTH / 2) * 100).toFixed(1)}%, transparent ${((ring + WHEEL_VIGNETTE_WIDTH) * 100).toFixed(1)}%)`,
+          background: bottom ? BOTTOM_LAYOUT_WHEEL_VIGNETTE : `linear-gradient(to ${flip ? "right" : "left"}, rgba(0,0,0,${WHEEL_VIGNETTE[0]}) 0%, rgba(0,0,0,${WHEEL_VIGNETTE[1]}) ${(ring * 100).toFixed(1)}%, rgba(0,0,0,${WHEEL_VIGNETTE[2]}) ${((ring + WHEEL_VIGNETTE_WIDTH / 2) * 100).toFixed(1)}%, transparent ${((ring + WHEEL_VIGNETTE_WIDTH) * 100).toFixed(1)}%)`,
         }}
       />
       <FallbackImg
@@ -356,13 +412,13 @@ const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct }: { game:
           // Sits above centre (centred at 38% of the height), anchored to the
           // art side, leaving the bottom for the game info and corner text.
           ...artBox,
-          transform: "translateY(-50%)",
-          WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, transparent 3%, #000 30%, #000 70%, transparent 97%, transparent 100%), ${sideFade}`,
+          transform: lift || "none",
+          WebkitMaskImage: `linear-gradient(to bottom, ${vFade}), ${sideFade}`,
           WebkitMaskComposite: "source-in",
           // Some hero art has a light 1–2px border, and a scaled, half-pixel-
           // positioned image can leak its edge row past the mask: drawn as a
           // thin bright line against the blurred backdrop. Never draw the edge.
-          clipPath: `inset(${HERO_EDGE_CLIP_PX}px)`,
+          clipPath: bottom ? "none" : `inset(${HERO_EDGE_CLIP_PX}px)`,
         }}
       />
       <div style={{ position: "absolute", inset: 0, background: HERO_BOTTOM_VIGNETTE, pointerEvents: "none" }} />
@@ -790,25 +846,31 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
     popupTimer.current = setTimeout(() => setPopup((p) => ({ ...p, show: false })), LETTER_POPUP_MS);
   }, [sel, alpha, letters]);
 
-  // Playtime and achievements show for the resting selection only (like
-  // Steam's own achievements line): the name changes as you spin, the details
-  // fade in once the wheel stops on a game.
-  const infoAppid = useSettled(current?.appid, ACHIEVEMENTS_DELAY_MS);
-  const infoReady = !!current && infoAppid === current.appid;
-  // Friends in this game right now, read once the wheel rests on it.
-  const friends = useMemo(() => (infoReady && current ? friendsInGame(current.appid) : null), [infoReady, current?.appid]);
+  // The info line changes together with the name on every step: playtime and
+  // last played come from the library list, achievements from the caches
+  // (cachedAchievements), friends from Steam's friends store, all in memory.
+  // Only what isn't cached (a game's first achievements, non-Steam playtime)
+  // fills in once Steam's app details answer.
+  const infoReady = !!current;
+  const friends = useMemo(() => (current ? friendsInGame(current.appid) : null), [current?.appid]);
 
-  // Achievements for the resting selection only.
-  const [extra, setExtra] = useState<AppExtra | null>(null);
-  const ach = extra?.ach ?? null;
+  // App details for the selected game, tagged with its appid so a value for
+  // the previous game is never shown, not even for one frame.
+  const [extra, setExtra] = useState<(AppExtra & { appid: number }) | null>(null);
+  const ex = current && extra?.appid === current.appid ? extra : null;
+  const ach = ex ? ex.ach : current ? cachedAchievements(current.appid) ?? null : null;
   // Library overview first; the app details fill in what it lacks (non-Steam shortcuts).
-  const lastPlayedAt = Math.max(current?.lastPlayed ?? 0, extra?.lastPlayed ?? 0);
+  const lastPlayedAt = Math.max(current?.lastPlayed ?? 0, ex?.lastPlayed ?? 0);
   useEffect(() => {
-    setExtra(null);
     if (!current) return;
+    const appid = current.appid;
     let unsub = () => {};
-    const tm = setTimeout(() => (unsub = subscribeAppExtra(current.appid, setExtra)), ACHIEVEMENTS_DELAY_MS);
+    // A reply that arrives after the wheel has moved on must not land on the next game.
+    let alive = true;
+    // Asked once the wheel pauses on a game for a moment, not for every game spun past.
+    const tm = setTimeout(() => (unsub = subscribeAppExtra(appid, (x) => alive && setExtra({ ...x, appid }))), DETAILS_DELAY_MS);
     return () => {
+      alive = false;
       clearTimeout(tm);
       unsub();
     };
@@ -855,6 +917,21 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   };
 
   const flip = s.rotatePad === "left"; // left pad → wheel on the left edge, art on the right
+  const layout: WheelLayout = s.layout === "bottom" ? "bottom" : "side";
+  const bottom = layout === "bottom";
+  const geom = wheelGeom(layout, flip, size.w, size.h, s.wheelSizePct);
+  // The icon info line for the resting game (playtime · last played · achievements · friends).
+  const renderInfo = () =>
+    current && infoReady ? (
+      <InfoRow
+        key={`info-${current.appid}`}
+        playtime={t.playtimeShort(Math.max(overviewMinutes(current.overview), ex?.minutes ?? 0))}
+        lastPlayed={lastPlayedAt > STEAM_EPOCH ? t.lastPlayed(daysSince(lastPlayedAt)) : null}
+        ach={ach}
+        friends={friends ? t.friendsPlaying(friends) : null}
+        accent={s.accentColor}
+      />
+    ) : null;
 
   // Steam's Focusable can keep the button handlers from an earlier render
   // (seen on device: Ⓐ kept opening one game, L1/R1 ignored a newly set
@@ -930,22 +1007,22 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
              positioning (translateY(-50%)) and make it jump into place. */
           @keyframes dwFade { from { opacity: 0; } to { opacity: 1; } }
           .dw-hero { animation: dwFade 220ms ease-out; }
-          .dw-info { animation: dwFade 200ms ease-out; }
         `}</style>
 
-        <Hero game={games[heroSel]} flip={flip} heroScale={s.heroScale} wheelSizePct={s.wheelSizePct} />
+        <Hero game={games[heroSel]} flip={flip} heroScale={s.heroScale} wheelSizePct={s.wheelSizePct} layout={layout} />
 
         <div
           style={{
             position: "absolute",
             inset: 0,
-            transformOrigin: `${flip ? -size.w * 0.02 : size.w * 1.02}px ${size.h / 2}px`, // the wheel's centre
+            transformOrigin: `${geom.cx}px ${geom.cy}px`, // the wheel's centre
             transform: `rotate(${ringFx.rot}deg)`,
             opacity: ringFx.op,
             transition: ringFx.ms ? `transform ${ringFx.ms}ms ${ringFx.ease}, opacity ${ringFx.ms}ms ${ringFx.ease}` : "none",
           }}
         >
         <WheelRing
+          layout={layout}
           games={games}
           sel={sel}
           motion={motion}
@@ -958,6 +1035,46 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
           textScale={s.textScale}
           accentColor={s.accentColor}
         />
+        {/* Bottom layout: the selected game's name with the icon info line right
+            under it, just above the selected game. The block is anchored by its
+            bottom and the info line's height is always reserved, so the name
+            stays at the same height whether the info is showing or not. */}
+        {bottom && current && (
+          <div
+            style={{
+              position: "absolute",
+              left: geom.cx,
+              top: geom.cy - geom.R - (BASE_CAPSULE_H * s.capsuleScale) / 2 - BOTTOM_TITLE_GAP_PX,
+              transform: "translate(-50%, -100%)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 6,
+              fontWeight: 700,
+              textShadow: "0 2px 8px #000",
+              pointerEvents: "none",
+            }}
+          >
+            <span
+              data-dw="title"
+              style={{
+                maxWidth: `${BOTTOM_TITLE_MAX_WIDTH_PCT}vw`,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                color: s.accentColor,
+                fontSize: 22,
+                fontWeight: 800,
+                letterSpacing: "0.04em",
+              }}
+            >
+              {current.name.toUpperCase()}
+            </span>
+            <span data-dw="info-slot" style={{ height: INFO_ROW_HEIGHT, display: "flex", alignItems: "center", justifyContent: "center", whiteSpace: "nowrap" }}>
+              {renderInfo()}
+            </span>
+          </div>
+        )}
         </div>
 
         {alpha && popup.letter && (
@@ -1001,16 +1118,21 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
                 letterSpacing: "0.08em",
               }}
             >
-              <span data-dw="title" style={{ color: s.accentColor, fontSize: 20, letterSpacing: "0.04em" }}>{current.name.toUpperCase()}</span>
-              {infoReady && (
-                <InfoRow
-                  key={`info-${current.appid}`}
-                  playtime={t.playtimeShort(Math.max(overviewMinutes(current.overview), extra?.minutes ?? 0))}
-                  lastPlayed={lastPlayedAt > STEAM_EPOCH ? t.lastPlayed(daysSince(lastPlayedAt)) : null}
-                  ach={ach}
-                  friends={friends ? t.friendsPlaying(friends) : null}
-                  accent={s.accentColor}
-                />
+              {/* One line, never wrapping: a long name changing as you spin must not push things around.
+                  (Bottom layout: the name sits above the selected game instead.) */}
+              {!bottom && <span
+                data-dw="title"
+                style={{ color: s.accentColor, fontSize: 20, letterSpacing: "0.04em", maxWidth: `${INFO_MAX_WIDTH_PCT}vw`, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+              >
+                {current.name.toUpperCase()}
+              </span>}
+              {/* The info line's space is always kept, so the title and the Ⓨ pill above
+                  stay put when it fades in once the wheel rests. (Bottom layout: it sits
+                  under the name above the selected game instead.) */}
+              {!bottom && (
+                <span data-dw="info-slot" style={{ height: INFO_ROW_HEIGHT, display: "flex", alignItems: "center", maxWidth: `${INFO_MAX_WIDTH_PCT}vw` }}>
+                  {renderInfo()}
+                </span>
               )}
             </div>
           )}

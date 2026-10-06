@@ -26,7 +26,8 @@ export const HAPTIC_MUTE_AFTER_B_MS = 500;
 /** Hero art follows the selection once it has rested this long. */
 export const HERO_SETTLE_MS = 150;
 /** Achievements are fetched once the selection has rested this long. */
-export const ACHIEVEMENTS_DELAY_MS = 200;
+/** Ask Steam for the selected game's details (achievements…) once the wheel pauses this long on it. */
+export const DETAILS_DELAY_MS = 60;
 /** Wheel position follow: exponential time constant, and max lag in games. */
 export const WHEEL_FOLLOW_TAU_MS = 55;
 export const WHEEL_MAX_LAG = 2;
@@ -93,3 +94,22 @@ export const HERO_BG_SCALE = 1.7;
 export const WHEEL_VIGNETTE_WIDTH = 0.3;
 /** Wheel-side vignette darkness (black alpha): at the screen edge, at the wheel's ring, halfway through the fade. */
 export const WHEEL_VIGNETTE = [0.8, 0.6, 0.25] as const;
+/** Height (px) always kept for the game info line under the title, so nothing above moves when it appears. */
+export const INFO_ROW_HEIGHT = 18;
+/** The title and the info line never grow past this share of the screen width (toward the wheel). */
+export const INFO_MAX_WIDTH_PCT = 58;
+
+// Bottom layout (Display → Layout): the wheel rises from the bottom edge.
+/** Wheel centre, as a share of the screen width from the wheel's side (0.5 = bottom centre). */
+export const BOTTOM_WHEEL_X = 0.3;
+/** Selected game's centre, as a share of the screen height (the ring's top). */
+export const BOTTOM_SELECTED_Y = 0.7;
+/** Extra room (degrees) on each side of the selected game, so its neighbours don't overlap it. */
+export const BOTTOM_SELECTED_GAP_DEG = 3.5;
+/** Gap (px) between the selected game and its name above it. */
+export const BOTTOM_TITLE_GAP_PX = 14;
+/** The name above the selected game never grows past this share of the screen width. */
+export const BOTTOM_TITLE_MAX_WIDTH_PCT = 44;
+/** Bottom layout: dark fade rising from the bottom, where the wheel sits (over the blurred backdrop, under the art). */
+export const BOTTOM_LAYOUT_WHEEL_VIGNETTE =
+  "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.75) 28%, rgba(0,0,0,0.35) 48%, transparent 66%)";
