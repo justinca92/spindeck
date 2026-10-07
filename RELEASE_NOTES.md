@@ -1,5 +1,22 @@
 # Release notes
 
+## 1.4.1
+
+### What's new in 1.4.1
+
+**Fixed**
+- 🧩 **"An error occurred while rendering this content" on the home screen with SteamGridDB installed.** With SteamGridDB's featured-capsule option on, the home screen could show Decky's error page instead of the wheel, depending on which plugin loaded first. Both plugins now work together in any order, with no setting to change. Thanks to Kida-Tech for the detailed report (#2).
+
+**Install:** Decky → Developer → Install Plugin from URL →
+https://github.com/justinca92/spindeck/releases/download/v1.4.1/spindeck-1.4.1.zip
+
+New here? See the [README](https://github.com/justinca92/spindeck#readme) for the full feature list.
+
+---
+Tested on Steam Deck OLED in game mode. Bugs and ideas: [Issues](https://github.com/justinca92/spindeck/issues)
+Free and open source. If you enjoy it: [Ko-fi](https://ko-fi.com/jhw0806) ☕
+Built with AI assistance (Claude); designed, tested and tuned on-device by justinca92.
+
 ## 1.4.0
 
 ### What's new in 1.4.0

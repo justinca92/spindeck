@@ -16,7 +16,7 @@ window.DFL = { Focusable, GamepadButton: B, Navigation: { Navigate: (p) => (wind
   ButtonItem: comp("ButtonItem"), DialogButton: comp("DialogButton"), DropdownItem: comp("DropdownItem"), PanelSection: comp("PanelSection"), PanelSectionRow: comp("PanelSectionRow"),
   SliderField: comp("SliderField"), TextField: comp("TextField"), ToggleField: comp("ToggleField"), ModalRoot: comp("ModalRoot"), staticClasses: {}, showContextMenu() {}, showModal() {} };
 let patchFn;
-window.__DECKY_SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED_deckyLoaderAPIInit = { connect: () => ({ call: async (m) => (m === "get_settings" ? { ownerText: "j1의 스팀덱", rotatePad: "left", soundEnabled: false, hapticEnabled: location.hash === "#pulse" || location.hash === "#qam", hapticMode: "pulseShort", rawPadApi: location.hash !== "#nopad" } : true), routerHook: { addRoute: (p, c) => (window.__routeComp = c), addPatch: (p, f) => (patchFn = f), removePatch() {}, removeRoute() {} } }) };
+window.__DECKY_SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED_deckyLoaderAPIInit = { connect: () => ({ call: async (m) => (m === "get_settings" ? { ...(location.hash.endsWith("-off") ? { homeEnabled: false } : {}), ownerText: "j1의 스팀덱", rotatePad: "left", soundEnabled: false, hapticEnabled: location.hash === "#pulse" || location.hash === "#qam", hapticMode: "pulseShort", rawPadApi: location.hash !== "#nopad" } : true), routerHook: { addRoute: (p, c) => (window.__routeComp = c), addPatch: (p, f) => (patchFn = f), removePatch() {}, removeRoute() {} } }) };
 const apps = Array.from({ length: 30 }, (_, i) => ({ appid: 100 + i, app_type: 1, display_name: "Game " + i, installed: true, rt_last_time_played: 1000 - i, minutes_playtime_forever: i * 30 }));
 window.collectionStore = { GetCollection: () => ({ allApps: apps }) };
 window.appStore = { GetCustomHeroImageURLs: (a) => ["/hero" + (a.appid % 3) + ".png?" + a.appid], GetCustomVerticalCapsuleURLs: (a) => ["/cap" + (a.appid % 3) + ".png?" + a.appid] };
@@ -35,8 +35,17 @@ window.__start = async () => {
     h("div", { style: { position: "absolute", height: 0 } }),
     h("div", { style: { height: 561, background: "#333" } }, h("button", null, "recent")),
     h("div", { id: "sec" }, h("div", null, h("div", { id: "tabs", style: { height: 58, background: "#2a2f38" } }, h("button", { style: { background: "transparent" } }, "tab"), h("button", { id: "friends", style: { background: "transparent" } }, "friends"), h("button", { style: { background: "transparent" } }, "recommended")), h("div", { style: { height: 1500 } }, h("button", null, "row1"), h("div", { style: { height: 300 } }), h("button", null, "row2")))));
+  // Another plugin patching the same route like SteamGridDB's "uniform featured" (#2):
+  // Decky's afterPatch on the element's type, then wrapReactType (`{ ...type }`) on its output.
+  const WRAPPED = Symbol("wrapped");
+  const wrapReactType = (node) => (node.type?.[WRAPPED] ? node.type : (node.type = { ...node.type, [WRAPPED]: true }));
+  const afterPatch = (obj, prop, handler) => { const orig = obj[prop]; obj[prop] = Object.assign(function (...a) { const ret = orig.apply(this, a); return handler(a, ret) ?? ret; }, orig); };
+  const sgdb = (props) => { afterPatch(props.children, "type", (_, ret) => { wrapReactType(ret); afterPatch(ret.type, "type", (_, ret2) => ret2); return ret; }); return props; };
+  const OrigMemo = React.memo(Orig);
+  const SteamHome = () => h(OrigMemo); // Steam's home renders a memo element, so the copy stays valid
+  const sgdbTree = location.hash.startsWith("#sgdb-after") ? sgdb(patchFn({ children: h(SteamHome) })).children : location.hash.startsWith("#sgdb-before") ? patchFn(sgdb({ children: h(SteamHome) })).children : null;
   const Flat = () => h("div", { id: "orighome" }, "unrecognised home layout", h("button", null, "only"));
-  const tree = location.hash === "#qam" ? window.__plugin.content : location.hash === "#flat" ? patchFn({ children: h(Flat) }).children : location.hash === "#page" ? h(window.__routeComp) : patchFn({ children: h(Orig) }).children;
+  const tree = sgdbTree ? sgdbTree : location.hash === "#qam" ? window.__plugin.content : location.hash === "#flat" ? patchFn({ children: h(Flat) }).children : location.hash === "#page" ? h(window.__routeComp) : patchFn({ children: h(Orig) }).children;
   const hdr = document.createElement("div"); hdr.id = "steamhdr"; hdr.style.cssText = "position:fixed;top:0;left:0;right:0;height:40px;background:rgba(0,0,0,0.5);backdrop-filter:blur(20px);z-index:6001"; hdr.innerHTML = '<input style="height:30px">'; document.body.appendChild(hdr);
   ReactDOMClient.createRoot(document.getElementById("root")).render(tree);
 };

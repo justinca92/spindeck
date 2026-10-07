@@ -2666,6 +2666,11 @@ function openHangulPad(title, initial, onDone) {
 
 // src/HomeSwitch.tsx
 function HomeSwitch({ original }) {
+  return /* @__PURE__ */ window.SP_REACT.createElement(HomeBody, {
+    original
+  });
+}
+var HomeBody = memo(function HomeBody({ original }) {
   const s = useSettings();
   const loaded = useSettingsLoaded();
   if (!loaded || !s.homeEnabled)
@@ -2675,7 +2680,7 @@ function HomeSwitch({ original }) {
   }, /* @__PURE__ */ window.SP_REACT.createElement(WheelHome, {
     original
   }));
-}
+});
 var SPACER_ATTR = "data-spindeck-spacer";
 function screenTop(p) {
   return p.host.getBoundingClientRect().top;
@@ -3190,7 +3195,7 @@ function WheelHome({ original }) {
 // src/links.ts
 var KOFI_URL = "https://ko-fi.com/jhw0806";
 var REPO_URL = "https://github.com/justinca92/spindeck";
-var PLUGIN_VERSION = "1.4.0";
+var PLUGIN_VERSION = "1.4.1";
 
 // src/index.tsx
 var ROUTE = "/spindeck";
@@ -3211,6 +3216,7 @@ var WheelIcon = () => /* @__PURE__ */ window.SP_REACT.createElement("svg", {
   r: "3"
 }));
 var HOME_ROUTE = "/library/home";
+var SPINDECK_HOME = "data-spindeck-home";
 function DeferredTextField({ label, initial, onCommit }) {
   const [text, setText] = useState(initial);
   const latest = useRef(initial);
@@ -3535,9 +3541,10 @@ var src_default = definePlugin(() => {
   })), { exact: true });
   const homePatch = routerHook.addPatch(HOME_ROUTE, (props) => {
     const original = props.children;
-    if (original?.type !== HomeSwitch) {
+    if (original?.type !== HomeSwitch && !original?.props?.[SPINDECK_HOME]) {
       props.children = /* @__PURE__ */ window.SP_REACT.createElement(HomeSwitch, {
-        original
+        original,
+        ...{ [SPINDECK_HOME]: true }
       });
     }
     return props;

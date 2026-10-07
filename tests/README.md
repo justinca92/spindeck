@@ -10,6 +10,7 @@ using stubbed Decky/Steam globals (`entry.js`).
     node tests/band.mjs   # top band: Steam bar + tab row, survives React rewrites
     node tests/jank.mjs   # no scroll fighting / style churn while Steam scrolls
     python3 tests/py/t.py # backend: missing/corrupt/non-dict settings, uninstall
+    node tests/sgdb.mjs   # another plugin (SteamGridDB) patching the home route first or last: no React #130
     node tests/perf.mjs   # 40 fast D-pad steps: CPU time, hero mounts, style writes
 
 Paths to React/Playwright point at this dev machine's tool installs; adjust as needed.

@@ -44,6 +44,7 @@ const WheelIcon = () => (
 );
 // Steam Deck home route. Verify on your client version if the wheel never shows.
 export const HOME_ROUTE = "/library/home";
+const SPINDECK_HOME = "data-spindeck-home";
 
 /**
  * Text field that keeps its own state while you type (so the panel doesn't
@@ -495,8 +496,10 @@ export default definePlugin(() => {
   // the wheel or the original home, so the toggle works without a restart.
   const homePatch = routerHook.addPatch(HOME_ROUTE, (props: any) => {
     const original = props.children;
-    if (original?.type !== HomeSwitch) {
-      props.children = <HomeSwitch original={original} />;
+    // Marked by a prop, not by `type`: other plugins' patches may replace the
+    // element's type with a wrapper, and we must still never wrap ourselves twice.
+    if (original?.type !== HomeSwitch && !original?.props?.[SPINDECK_HOME]) {
+      props.children = <HomeSwitch original={original} {...{ [SPINDECK_HOME]: true }} />;
     }
     return props;
   });

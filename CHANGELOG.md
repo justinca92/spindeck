@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1 — 2026-10-07
+
+### Fixed
+- **Home screen error with SteamGridDB** ("An error occurred while rendering this content", React #130; #2). SteamGridDB's "uniform featured" home option patches the same route and runs the home component's output through Decky's `wrapReactType` (`ret.type = { ...ret.type }`). When its patch ran after Spindeck's (it depends on plugin load order), that output was Spindeck's Fragment or `SafeBoundary`, and the copy of a symbol/class type is a plain `{}`, which React can't render. `HomeSwitch` now always returns a `memo` element (`HomeBody`), whose copy keeps `$$typeof` and stays valid, in either load order, wheel on or off. The home patch also marks its element with a prop instead of checking `type`, since another plugin may replace the type with a wrapper. Test: `tests/sgdb.mjs` (both load orders × wheel on/off).
+
 ## 1.4.0 — 2026-10-06
 
 ### Added

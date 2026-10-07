@@ -1,5 +1,5 @@
 import { Focusable, GamepadButton } from "@decky/ui";
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { memo, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { WheelPage } from "./WheelPage";
 import { useWheelGeneration } from "./reset";
 import { getSettings, updateSettings, useSettings, useSettingsLoaded } from "./settings";
@@ -33,6 +33,16 @@ import {
  *   sections → Ⓑ: to the top of the sections; at the top, Steam's own Ⓑ (Steam menu)
  */
 export function HomeSwitch({ original }: { original: ReactNode }) {
+  // Other plugins patch the home route too, and some of them (SteamGridDB's
+  // "uniform featured" option) run this component's output through Decky's
+  // wrapReactType, i.e. `ret.type = { ...ret.type }`. That copy is only a valid
+  // React type for exotic types like memo (it keeps `$$typeof`); a Fragment
+  // (symbol) or a class/function becomes a plain `{}` and React throws #130.
+  // So what we return here is always a memo element. (#2)
+  return <HomeBody original={original} />;
+}
+
+const HomeBody = memo(function HomeBody({ original }: { original: ReactNode }) {
   const s = useSettings();
   const loaded = useSettingsLoaded();
   if (!loaded || !s.homeEnabled) return <>{original}</>;
@@ -42,7 +52,7 @@ export function HomeSwitch({ original }: { original: ReactNode }) {
       <WheelHome original={original} />
     </SafeBoundary>
   );
-}
+});
 
 // ───────────────────────── Steam home layout ─────────────────────────
 /**
