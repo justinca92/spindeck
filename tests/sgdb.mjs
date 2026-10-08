@@ -12,8 +12,8 @@ for (const mode of ["sgdb-after", "sgdb-before", "sgdb-after-off", "sgdb-before-
   await p.goto("http://localhost:8779/#" + mode); await p.waitForFunction(() => window.__start); await p.evaluate(() => window.__start()); await p.waitForTimeout(1500);
   const r = await p.evaluate(() => ({ wheel: !!document.querySelector("[data-spindeck-wheel]"), original: !!document.getElementById("orighome"), sgdbHit: window.__sgdbHit || 0, rivalMoves: window.__rivalMoves || 0 }));
   // Decky modes: SteamGridDB's patch must also have reached Steam's real recents row.
-  // Ping-pong: Spindeck gives up after a few moves and shows Steam's home; no loop, no error.
-  const want = mode === "decky-pingpong" ? r.original && !r.wheel && r.rivalMoves < 10 : (mode.endsWith("-off") ? r.original && !r.wheel : r.wheel) && (!mode.startsWith("decky") || r.sgdbHit > 0);
+  // Ping-pong: Spindeck stops swapping after a few moves and wraps where it is; no loop, no error.
+  const want = mode === "decky-pingpong" ? r.wheel && r.rivalMoves <= 5 : (mode.endsWith("-off") ? r.original && !r.wheel : r.wheel) && (!mode.startsWith("decky") || r.sgdbHit > 0);
   const ok = want && !errs.some((e) => /#130|invalid|Element type|Cannot read properties/i.test(e));
   if (!ok) fail++;
   console.log(ok ? "PASS" : "FAIL", mode, JSON.stringify(r), errs.slice(0, 2));

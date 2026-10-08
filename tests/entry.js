@@ -64,7 +64,7 @@ window.__start = async () => {
       const oType = child.type;
       const next = patch({ path: "/library/home", children: { ...React.cloneElement(child), type: child[IS_PATCHED] ? oType : (props) => h(oType, props) } }).children;
       next[IS_PATCHED] = true;
-      (window.__passes ||= []).push((patch.name || "?") + ">" + (next.type?.name || typeof next.type));
+      (window.__passes ||= []).push(Math.round(performance.now()) + " " + (patch.name || "?") + ">" + (next.type?.name || typeof next.type));
       child = next;
     }
     return child;

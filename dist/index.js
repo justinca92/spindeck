@@ -3298,6 +3298,7 @@ var MOVE_WINDOW_MS = 30000;
 var BLIND_MOVES_MS = [2000, 8000, 20000];
 var active = false;
 var movePending = false;
+var gaveUp = false;
 var moves = [];
 var timers = [];
 function homePatches() {
@@ -3323,19 +3324,22 @@ function moveToEnd() {
 }
 function patchHome(props) {
   const set = homePatches();
-  if (set && lastOf(set) !== patchHome) {
+  if (!gaveUp && set && lastOf(set) !== patchHome) {
     const now = Date.now();
     moves = moves.filter((t) => now - t < MOVE_WINDOW_MS);
-    if (moves.length < MAX_MOVES && !movePending) {
-      movePending = true;
-      timers.push(setTimeout(() => {
-        movePending = false;
-        moveToEnd();
-      }, 0));
-    } else if (moves.length >= MAX_MOVES) {
-      debug("home", "another plugin keeps patching after us: showing Steam's home");
+    if (moves.length >= MAX_MOVES) {
+      gaveUp = true;
+      debug("home", "another plugin also keeps its home patch last: staying where we are");
+    } else {
+      if (!movePending) {
+        movePending = true;
+        timers.push(setTimeout(() => {
+          movePending = false;
+          moveToEnd();
+        }, 0));
+      }
+      return props;
     }
-    return props;
   }
   const original = props.children;
   if (original?.type !== HomeSwitch && !original?.props?.[SPINDECK_HOME]) {
@@ -3358,6 +3362,7 @@ function removeHomePatch() {
   active = false;
   timers.splice(0).forEach(clearTimeout);
   movePending = false;
+  gaveUp = false;
   moves = [];
   routerHook.removePatch(HOME_ROUTE, patchHome);
 }

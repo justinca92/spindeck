@@ -16,15 +16,16 @@ import { debug } from "./log";
 
 export const HOME_ROUTE = "/library/home";
 const SPINDECK_HOME = "data-spindeck-home";
-/** Two plugins both insisting on being last would swap forever: give up after this many moves… */
+/** Two plugins both insisting on being last would swap forever: after this many moves… */
 const MAX_MOVES = 4;
-/** …within this window. */
+/** …within this window, stop moving for good (until the plugin reloads) and wrap where we are. */
 const MOVE_WINDOW_MS = 30_000;
 /** Without access to Decky's patch list: move to the end at these times after load instead. */
 const BLIND_MOVES_MS = [2_000, 8_000, 20_000];
 
 let active = false;
 let movePending = false;
+let gaveUp = false;
 let moves: number[] = [];
 const timers: ReturnType<typeof setTimeout>[] = [];
 
@@ -54,23 +55,29 @@ function moveToEnd() {
 
 function patchHome(props: any) {
   const set = homePatches();
-  if (set && lastOf(set) !== patchHome) {
-    // Never wrap while someone patches after us: their patch would get the wheel.
-    // This pass shows Steam's home with their patches; the move re-renders.
+  if (!gaveUp && set && lastOf(set) !== patchHome) {
     const now = Date.now();
     moves = moves.filter((t) => now - t < MOVE_WINDOW_MS);
-    if (moves.length < MAX_MOVES && !movePending) {
-      movePending = true;
-      timers.push(
-        setTimeout(() => {
-          movePending = false;
-          moveToEnd();
-        }, 0),
-      );
-    } else if (moves.length >= MAX_MOVES) {
-      debug("home", "another plugin keeps patching after us: showing Steam's home");
+    if (moves.length >= MAX_MOVES) {
+      // Another plugin keeps moving itself last too. One that does that wraps the
+      // final result (it doesn't dig into Steam's home like SteamGridDB), so stop
+      // swapping for good and wrap where we are.
+      gaveUp = true;
+      debug("home", "another plugin also keeps its home patch last: staying where we are");
+    } else {
+      // Never wrap while someone patches after us: their patch would get the wheel.
+      // This one pass shows Steam's home with their patches; the move re-renders.
+      if (!movePending) {
+        movePending = true;
+        timers.push(
+          setTimeout(() => {
+            movePending = false;
+            moveToEnd();
+          }, 0),
+        );
+      }
+      return props;
     }
-    return props;
   }
   const original = props.children;
   // Marked by a prop, not by `type`: other plugins' patches may replace the
@@ -94,6 +101,7 @@ export function removeHomePatch() {
   active = false;
   timers.splice(0).forEach(clearTimeout);
   movePending = false;
+  gaveUp = false;
   moves = [];
   routerHook.removePatch(HOME_ROUTE, patchHome);
 }
