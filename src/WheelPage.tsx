@@ -470,8 +470,12 @@ function HeroV130({ game, srcs, flip, heroScale }: { game: GameEntry; srcs: stri
           maxHeight: "92%",
           objectFit: "contain",
           objectPosition: flip ? "right center" : "left center",
-          WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, #000 30%, #000 70%, transparent 100%), linear-gradient(to ${flip ? "left" : "right"}, #000 72%, transparent 100%)`,
+          // 1.3.0's fades, plus the edge fix from 1.3.1: the top and bottom 3% fully
+          // transparent and the outer edge pixels never drawn, so the light 1–2px
+          // border some hero art has can't show as a white line above or below it.
+          WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, transparent 3%, #000 30%, #000 70%, transparent 97%, transparent 100%), linear-gradient(to ${flip ? "left" : "right"}, #000 72%, transparent 100%)`,
           WebkitMaskComposite: "source-in",
+          clipPath: `inset(${HERO_EDGE_CLIP_PX}px)`,
         }}
       />
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, #000a 0%, transparent 40%)", pointerEvents: "none" }} />

@@ -7,7 +7,7 @@
 **New**
 - ⬆️ **Update right from the panel.** Press **Check for updates** at the bottom of the Spindeck panel; if there's a newer version, **Update to vX** installs it in place after Decky asks you to confirm once. Your settings are kept. Spindeck only contacts GitHub when you press the button. (This works from 1.4.1 on, so this one update still goes through the zip below.)
 
-- 🖼️ **Hero art v1.3.0 style** (side layout): a new switch in Display brings back the 1.3.0 look of the hero art: in the middle of the screen, with 1.3.0's blurred background and fades. Off by default.
+- 🖼️ **Hero art v1.3.0 style** (side layout): a new switch in Display brings back the 1.3.0 look of the hero art: in the middle of the screen, with 1.3.0's blurred background and fades (without the thin white line some art showed above and below it in 1.3.0). Off by default.
 
 **Changed**
 - 🎡 **Bottom layout: your custom text now sits level with the selected game's name**, on the side away from the wheel, and the Ⓨ "Today's game?" button moves down to the corner.

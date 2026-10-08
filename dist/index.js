@@ -1818,8 +1818,9 @@ function HeroV130({ game, srcs, flip, heroScale }) {
       maxHeight: "92%",
       objectFit: "contain",
       objectPosition: flip ? "right center" : "left center",
-      WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, #000 30%, #000 70%, transparent 100%), linear-gradient(to ${flip ? "left" : "right"}, #000 72%, transparent 100%)`,
-      WebkitMaskComposite: "source-in"
+      WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, transparent 3%, #000 30%, #000 70%, transparent 97%, transparent 100%), linear-gradient(to ${flip ? "left" : "right"}, #000 72%, transparent 100%)`,
+      WebkitMaskComposite: "source-in",
+      clipPath: `inset(${HERO_EDGE_CLIP_PX}px)`
     }
   }), /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { position: "absolute", inset: 0, background: "linear-gradient(to top, #000a 0%, transparent 40%)", pointerEvents: "none" }
