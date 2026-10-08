@@ -143,6 +143,8 @@ export async function initSettings() {
     delete merged.favoritesOnL1;
     delete merged.hapticMode;
     delete merged.hideRecentShelf; // always on since 0.9.4 (toggle removed)
+    delete merged.checkUpdates; // 1.4.1 test builds only
+    delete merged.updateNotified; // 1.4.1 test builds only
     current = merged;
     if (needsSave) backendSet(current).catch(() => {});
   } catch (e) {

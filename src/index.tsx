@@ -23,6 +23,7 @@ import { KOFI_URL, PLUGIN_VERSION, REPO_URL } from "./links";
 import { levelToDb, wheelTick } from "./haptics";
 import { SafeBoundary, teardownAll } from "./safety";
 import { sweepLeftovers } from "./steamDom";
+import { checkNow, startUpdate, useUpdateCheck } from "./updater";
 import { useEffect, useRef, useState } from "react";
 import {
   PadSide,
@@ -426,6 +427,7 @@ function QuickAccessPanel() {
             <div style={{ fontSize: 12, color: "#8b929a" }}>{t.odometer(Math.floor(s.odometerTurns).toLocaleString())}</div>
           </PanelSectionRow>
         )}
+        <UpdateRow t={t} />
       </PanelSection>
     </>
   );
@@ -522,3 +524,27 @@ export default definePlugin(() => {
     },
   };
 });
+
+/** "Check for updates" (only when pressed), then "Update to vX" if GitHub has a newer release. */
+function UpdateRow({ t }: { t: Strings }) {
+  const st = useUpdateCheck();
+  const [failed, setFailed] = useState(false);
+  const status =
+    st.kind === "latest" ? t.upToDate(st.version) : st.kind === "available" ? t.updateAvailable(st.info.version, PLUGIN_VERSION) : st.kind === "error" ? t.updateError : t.checkUpdatesDesc;
+  return (
+    <>
+      <PanelSectionRow>
+        <ButtonItem layout="below" description={status} disabled={st.kind === "checking"} onClick={() => void checkNow()}>
+          {st.kind === "checking" ? t.checkingUpdates : t.checkUpdates}
+        </ButtonItem>
+      </PanelSectionRow>
+      {st.kind === "available" && (
+        <PanelSectionRow>
+          <ButtonItem layout="below" description={failed ? t.updateManual : t.updateDesc} onClick={async () => setFailed(!(await startUpdate(st.info)))}>
+            ⬆ {t.updateTo(st.info.version)}
+          </ButtonItem>
+        </PanelSectionRow>
+      )}
+    </>
+  );
+}

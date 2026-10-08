@@ -118,6 +118,8 @@ async function initSettings() {
     delete merged.favoritesOnL1;
     delete merged.hapticMode;
     delete merged.hideRecentShelf;
+    delete merged.checkUpdates;
+    delete merged.updateNotified;
     current = merged;
     if (needsSave)
       backendSet(current).catch(() => {});
@@ -274,6 +276,15 @@ var ko = {
   options: "옵션",
   wheel: "휠 런처",
   about: "정보",
+  checkUpdates: "업데이트 확인",
+  checkingUpdates: "확인하는 중…",
+  checkUpdatesDesc: "누를 때만 GitHub에서 새 버전이 있는지 확인해요.",
+  upToDate: (v) => `최신 버전이에요 (v${v})`,
+  updateAvailable: (v, cur) => `새 버전 v${v}이 있어요 (지금 v${cur})`,
+  updateTo: (v) => `v${v}로 업데이트`,
+  updateDesc: "Decky가 한 번 확인을 물어본 뒤 플러그인을 교체해요. 설정은 그대로 유지돼요.",
+  updateError: "확인하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.",
+  updateManual: "이 Decky 버전에서는 여기서 업데이트할 수 없어요. GitHub에서 새 zip을 설치해 주세요.",
   support: "개발자 후원하기 (Ko-fi)",
   supportDesc: "Spindeck이 마음에 드셨다면 커피 한 잔으로 응원해 주세요",
   sourceAndUpdates: "GitHub: 소스 코드 · 업데이트",
@@ -347,6 +358,15 @@ var en = {
   options: "Options",
   wheel: "Wheel launcher",
   about: "About",
+  checkUpdates: "Check for updates",
+  checkingUpdates: "Checking…",
+  checkUpdatesDesc: "Asks GitHub for a newer version, only when you press it.",
+  upToDate: (v) => `You're up to date (v${v})`,
+  updateAvailable: (v, cur) => `Version v${v} is available (you have v${cur})`,
+  updateTo: (v) => `Update to v${v}`,
+  updateDesc: "Decky asks you to confirm once, then replaces the plugin in place. Your settings are kept.",
+  updateError: "Couldn't check. Make sure you're online and try again.",
+  updateManual: "This Decky version can't update from here. Install the new zip from GitHub.",
   support: "Support the developer (Ko-fi)",
   supportDesc: "If you enjoy Spindeck, a coffee keeps it going",
   sourceAndUpdates: "GitHub: source code · updates",
@@ -3197,6 +3217,84 @@ var KOFI_URL = "https://ko-fi.com/jhw0806";
 var REPO_URL = "https://github.com/justinca92/spindeck";
 var PLUGIN_VERSION = "1.4.1";
 
+// src/updater.ts
+var RELEASES_API = "https://api.github.com/repos/justinca92/spindeck/releases/latest";
+var INSTALL_TYPE_UPDATE = 2;
+var state = { kind: "idle" };
+var listeners4 = new Set;
+var emit2 = () => listeners4.forEach((l) => l());
+function newer(a, b) {
+  const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0;i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d)
+      return d > 0;
+  }
+  return false;
+}
+async function checkForUpdate() {
+  try {
+    const res = await fetch(RELEASES_API, { headers: { Accept: "application/vnd.github+json" } });
+    if (!res.ok) {
+      debug("update", "check failed", res.status);
+      return null;
+    }
+    const rel = await res.json();
+    const version = String(rel?.tag_name ?? "").replace(/^v/i, "");
+    const asset = (rel?.assets ?? []).find((a) => /^spindeck-.*\.zip$/i.test(String(a?.name ?? "")));
+    if (!version || !asset?.browser_download_url)
+      return null;
+    if (!newer(version, PLUGIN_VERSION))
+      return "latest";
+    const hash = /^sha256:([0-9a-f]{64})$/i.exec(String(asset.digest ?? ""))?.[1] ?? "";
+    const info = { version, url: asset.browser_download_url, hash, page: String(rel.html_url ?? "") };
+    debug("update", "newer release", info, "running", PLUGIN_VERSION);
+    return info;
+  } catch (e) {
+    debug("update", "check error", e);
+    return null;
+  }
+}
+var prepareUpdate = callable("prepare_update");
+async function startUpdate(info) {
+  const backend = window.DeckyBackend;
+  if (typeof backend?.call !== "function") {
+    debug("update", "Decky's installer isn't reachable from here");
+    return false;
+  }
+  try {
+    await prepareUpdate();
+  } catch (e) {
+    debug("update", "prepare failed", e);
+  }
+  try {
+    await backend.call("utilities/install_plugin", info.url, "Spindeck", info.version, info.hash, INSTALL_TYPE_UPDATE);
+    return true;
+  } catch (e) {
+    debug("update", "install request failed", e);
+    return false;
+  }
+}
+function useUpdateCheck() {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const l = () => force((n) => n + 1);
+    listeners4.add(l);
+    return () => void listeners4.delete(l);
+  }, []);
+  return state;
+}
+async function checkNow() {
+  if (state.kind === "checking")
+    return;
+  state = { kind: "checking" };
+  emit2();
+  const r = await checkForUpdate();
+  state = r === null ? { kind: "error" } : r === "latest" ? { kind: "latest", version: PLUGIN_VERSION } : { kind: "available", info: r };
+  emit2();
+}
+
 // src/index.tsx
 var ROUTE = "/spindeck";
 var WheelIcon = () => /* @__PURE__ */ window.SP_REACT.createElement("svg", {
@@ -3493,7 +3591,9 @@ function QuickAccessPanel() {
     style: { fontSize: 12, color: "#8b929a" }
   }, "Spindeck v", PLUGIN_VERSION)), s.odometerTurns >= 1 && /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { fontSize: 12, color: "#8b929a" }
-  }, t.odometer(Math.floor(s.odometerTurns).toLocaleString())))));
+  }, t.odometer(Math.floor(s.odometerTurns).toLocaleString()))), /* @__PURE__ */ window.SP_REACT.createElement(UpdateRow, {
+    t
+  })));
 }
 function viewOptions(t, withNone) {
   return [
@@ -3568,6 +3668,21 @@ var src_default = definePlugin(() => {
     }
   };
 });
+function UpdateRow({ t }) {
+  const st = useUpdateCheck();
+  const [failed, setFailed] = useState(false);
+  const status = st.kind === "latest" ? t.upToDate(st.version) : st.kind === "available" ? t.updateAvailable(st.info.version, PLUGIN_VERSION) : st.kind === "error" ? t.updateError : t.checkUpdatesDesc;
+  return /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(ButtonItem, {
+    layout: "below",
+    description: status,
+    disabled: st.kind === "checking",
+    onClick: () => void checkNow()
+  }, st.kind === "checking" ? t.checkingUpdates : t.checkUpdates)), st.kind === "available" && /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(ButtonItem, {
+    layout: "below",
+    description: failed ? t.updateManual : t.updateDesc,
+    onClick: async () => setFailed(!await startUpdate(st.info))
+  }, "⬆ ", t.updateTo(st.info.version))));
+}
 export {
   HOME_ROUTE,
   ROUTE,
