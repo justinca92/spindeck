@@ -274,6 +274,16 @@ function QuickAccessPanel() {
             onChange={(o) => updateSettings({ layout: o.data as "side" | "bottom" })}
           />
         </PanelSectionRow>
+        {s.layout !== "bottom" && (
+          <PanelSectionRow>
+            <ToggleField
+              label={t.heroLegacyPos}
+              description={t.heroLegacyPosDesc}
+              checked={s.heroLegacyPos}
+              onChange={(v) => updateSettings({ heroLegacyPos: v })}
+            />
+          </PanelSectionRow>
+        )}
         <PanelSectionRow>
           <SliderField
             label={t.heroSize}

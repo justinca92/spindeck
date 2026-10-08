@@ -5,6 +5,8 @@
 ### Added
 - **Update from the panel.** "Check for updates" at the bottom of the panel asks GitHub's public API for the latest release, only when pressed (`src/updater.ts`); if it's newer, "Update to vX" hands the release zip (with GitHub's sha256 digest) to Decky's own installer as an update (`utilities/install_plugin`, InstallType 2), which asks once to confirm. Decky updates by uninstalling then installing, so the backend's `prepare_update` writes an `updating` marker first and `_uninstall` keeps the settings while it's under 10 minutes old; the new copy's `_main` removes it. If this Decky's installer isn't reachable, the panel says to install the zip from GitHub instead.
 
+- **Hero art v1.3.0 position** (panel → Display, shown only with the side layout; off by default, `heroLegacyPos`): the sharp art and its blurred layers are centred on the screen's height and start right at the art-side edge, as in 1.3.0, instead of above centre (`HERO_CENTER_PCT` 38%) and 3% past the edge (`HERO_SHIFT_PCT`). Only the position changes; fades, blur and vignettes are the current ones.
+
 ### Changed
 - **Bottom layout: the custom text moves up beside the selected game's name**, on the side away from the wheel: the main text is centred on the name's line and the subtitle on the info line's (same anchor and row heights as the name block, `BOTTOM_TITLE_LINE_PX`; one line each, within 40% of the width, `BOTTOM_OWNER_MAX_WIDTH_PCT`). The Ⓨ "Today's game?" pill sits alone in the bottom corner. The side layout is unchanged.
 

@@ -331,15 +331,19 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
 });
 
 /** Selected game's art, blurred background + sharp foreground. Changes only once the wheel rests. */
-const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout }: { game: GameEntry | undefined; flip: boolean; heroScale: number; wheelSizePct: number; layout: WheelLayout }) {
+const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout, legacyPos }: { game: GameEntry | undefined; flip: boolean; heroScale: number; wheelSizePct: number; layout: WheelLayout; legacyPos?: boolean }) {
   const bottom = layout === "bottom";
+  // Side layout, "Hero art v1.3.0 position": centred on the screen's height and
+  // starting right at the art-side edge, as 1.3.0 placed it (the look is unchanged).
+  const legacy = !bottom && !!legacyPos;
+  const shiftPct = legacy ? 0 : HERO_SHIFT_PCT;
   if (!game) return null;
   const srcs = [...game.hero, ...game.capsule];
   // Pushed toward the art side (partly off-screen there) and faded out on the
   // wheel side so that it's fully clear inside the wheel's circle.
   // All in fractions of the screen width, measured from the wheel's edge.
   const w = heroScale / 100;
-  const start = 1 + HERO_SHIFT_PCT / 100 - w; // where the image begins (wheel side)
+  const start = 1 + shiftPct / 100 - w; // where the image begins (wheel side)
   const ring = wheelSizePct / 100 - 0.02; // the wheel's ring (its centre sits 2% off-screen)
   const at = (x: number) => `${Math.max(0, Math.min(100, ((x - start) / w) * 100)).toFixed(1)}%`;
   // Side: above centre, pushed away from the wheel. Bottom: across the top
@@ -359,8 +363,8 @@ const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout }:
       }
     : {
         position: "absolute",
-        top: `${HERO_CENTER_PCT}%`,
-        [flip ? "right" : "left"]: `-${HERO_SHIFT_PCT}%`,
+        top: `${legacy ? 50 : HERO_CENTER_PCT}%`,
+        [flip ? "right" : "left"]: `-${shiftPct}%`,
         width: `${heroScale}%`,
         maxHeight: "92%",
         objectFit: "contain",
@@ -1015,7 +1019,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
           .dw-hero { animation: dwFade 220ms ease-out; }
         `}</style>
 
-        <Hero game={games[heroSel]} flip={flip} heroScale={s.heroScale} wheelSizePct={s.wheelSizePct} layout={layout} />
+        <Hero game={games[heroSel]} flip={flip} heroScale={s.heroScale} wheelSizePct={s.wheelSizePct} layout={layout} legacyPos={s.heroLegacyPos} />
 
         <div
           style={{

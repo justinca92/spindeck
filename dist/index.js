@@ -50,6 +50,7 @@ var DEFAULTS = {
   visibleCount: 11,
   heroScale: 95,
   layout: "side",
+  heroLegacyPos: false,
   soundEnabled: true,
   hapticEnabled: true,
   hapticLevel: 7,
@@ -249,6 +250,8 @@ var ko = {
   layoutSide: "옆 (화면 가장자리)",
   layoutBottom: "아래 (아래쪽 모서리)",
   pctOfWidth: "화면 너비 대비 %",
+  heroLegacyPos: "히어로 이미지 v1.3.0 위치",
+  heroLegacyPosDesc: "1.3.0처럼 화면 세로 가운데, 가장자리에 붙여서 보여 줘요.",
   visible: "한 화면에 보이는 게임 수",
   wheelSize: "휠 크기",
   capsuleSize: "캡슐 이미지 크기",
@@ -331,6 +334,8 @@ var en = {
   layoutSide: "Side (screen edge)",
   layoutBottom: "Bottom (lower corner)",
   pctOfWidth: "% of screen width",
+  heroLegacyPos: "Hero art v1.3.0 position",
+  heroLegacyPosDesc: "Centred vertically at the screen edge, as in 1.3.0.",
   visible: "Games visible at once",
   wheelSize: "Wheel size",
   capsuleSize: "Capsule art size",
@@ -1717,13 +1722,15 @@ var WheelRing = memo(function WheelRing(p) {
     style: { position: "absolute", inset: 0 }
   }, items);
 });
-var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout }) {
+var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout, legacyPos }) {
   const bottom = layout === "bottom";
+  const legacy = !bottom && !!legacyPos;
+  const shiftPct = legacy ? 0 : HERO_SHIFT_PCT;
   if (!game)
     return null;
   const srcs = [...game.hero, ...game.capsule];
   const w = heroScale / 100;
-  const start = 1 + HERO_SHIFT_PCT / 100 - w;
+  const start = 1 + shiftPct / 100 - w;
   const ring = wheelSizePct / 100 - 0.02;
   const at = (x) => `${Math.max(0, Math.min(100, (x - start) / w * 100)).toFixed(1)}%`;
   const lift = bottom ? "" : "translateY(-50%)";
@@ -1737,8 +1744,8 @@ var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout }) {
     objectPosition: "center top"
   } : {
     position: "absolute",
-    top: `${HERO_CENTER_PCT}%`,
-    [flip ? "right" : "left"]: `-${HERO_SHIFT_PCT}%`,
+    top: `${legacy ? 50 : HERO_CENTER_PCT}%`,
+    [flip ? "right" : "left"]: `-${shiftPct}%`,
     width: `${heroScale}%`,
     maxHeight: "92%",
     objectFit: "contain",
@@ -2272,7 +2279,8 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     flip,
     heroScale: s.heroScale,
     wheelSizePct: s.wheelSizePct,
-    layout
+    layout,
+    legacyPos: s.heroLegacyPos
   }), /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: {
       position: "absolute",
@@ -3517,6 +3525,11 @@ function QuickAccessPanel() {
     ],
     selectedOption: s.layout === "bottom" ? "bottom" : "side",
     onChange: (o) => updateSettings({ layout: o.data })
+  })), s.layout !== "bottom" && /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(ToggleField, {
+    label: t.heroLegacyPos,
+    description: t.heroLegacyPosDesc,
+    checked: s.heroLegacyPos,
+    onChange: (v) => updateSettings({ heroLegacyPos: v })
   })), /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(SliderField, {
     label: t.heroSize,
     description: t.pctOfWidth,
