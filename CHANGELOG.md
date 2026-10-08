@@ -1,6 +1,12 @@
 # Changelog
 
-## 1.4.1 — 2026-10-07
+## 1.4.1 — 2026-10-08
+
+### Added
+- **Update from the panel.** "Check for updates" at the bottom of the panel asks GitHub's public API for the latest release, only when pressed (`src/updater.ts`); if it's newer, "Update to vX" hands the release zip (with GitHub's sha256 digest) to Decky's own installer as an update (`utilities/install_plugin`, InstallType 2), which asks once to confirm. Decky updates by uninstalling then installing, so the backend's `prepare_update` writes an `updating` marker first and `_uninstall` keeps the settings while it's under 10 minutes old; the new copy's `_main` removes it. If this Decky's installer isn't reachable, the panel says to install the zip from GitHub instead.
+
+### Changed
+- **Bottom layout: the custom text moves to the middle of the screen**, vertically centred on the side away from the wheel (within 40% of the width, `BOTTOM_OWNER_MAX_WIDTH_PCT`), and the Ⓨ "Today's game?" pill sits alone in the bottom corner. The side layout is unchanged.
 
 ### Fixed
 - **Home screen error with SteamGridDB** ("An error occurred while rendering this content", React #130; #2). SteamGridDB's "uniform featured" home option patches the same route and runs the home component's output through Decky's `wrapReactType` (`ret.type = { ...ret.type }`). When its patch ran after Spindeck's (it depends on plugin load order), that output was Spindeck's Fragment or `SafeBoundary`, and the copy of a symbol/class type is a plain `{}`, which React can't render. `HomeSwitch` now always returns a `memo` element (`HomeBody`), whose copy keeps `$$typeof` and stays valid, in either load order, wheel on or off. The home patch also marks its element with a prop instead of checking `type`, since another plugin may replace the type with a wrapper. Test: `tests/sgdb.mjs` (both load orders × wheel on/off).

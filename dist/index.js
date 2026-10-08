@@ -1511,6 +1511,7 @@ var BOTTOM_SELECTED_Y = 0.7;
 var BOTTOM_SELECTED_GAP_DEG = 3.5;
 var BOTTOM_TITLE_GAP_PX = 14;
 var BOTTOM_TITLE_MAX_WIDTH_PCT = 44;
+var BOTTOM_OWNER_MAX_WIDTH_PCT = 40;
 var BOTTOM_LAYOUT_WHEEL_VIGNETTE = "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.75) 28%, rgba(0,0,0,0.35) 48%, transparent 66%)";
 
 // src/WheelPage.tsx
@@ -2338,11 +2339,28 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     side: flip ? "right" : "left"
   }), !n && /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { position: "absolute", [flip ? "left" : "right"]: 60, top: "48%", color: "#aaa", fontSize: 20 }
-  }, t.noGames), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+  }, t.noGames), bottom && /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    "data-dw": "owner",
     style: {
       position: "absolute",
       [flip ? "right" : "left"]: 40,
-      bottom: 32,
+      top: "50%",
+      transform: "translateY(-50%)",
+      maxWidth: `${BOTTOM_OWNER_MAX_WIDTH_PCT}vw`,
+      color: "#fff",
+      textShadow: "0 2px 8px #000",
+      textAlign: flip ? "right" : "left",
+      pointerEvents: "none"
+    }
+  }, /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: { fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }
+  }, s.ownerText), s.subtitleText && /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: { fontSize: 16, opacity: 0.8, marginTop: 4 }
+  }, s.subtitleText)), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: {
+      position: "absolute",
+      [flip ? "right" : "left"]: 40,
+      bottom: bottom ? 32 - 14 : 32,
       color: "#fff",
       textShadow: "0 2px 8px #000",
       textAlign: flip ? "right" : "left"
@@ -2368,9 +2386,9 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   }, current.name.toUpperCase()), !bottom && /* @__PURE__ */ window.SP_REACT.createElement("span", {
     "data-dw": "info-slot",
     style: { height: INFO_ROW_HEIGHT, display: "flex", alignItems: "center", maxWidth: `${INFO_MAX_WIDTH_PCT}vw` }
-  }, renderInfo())), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+  }, renderInfo())), !bottom && /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }
-  }, s.ownerText), s.subtitleText && /* @__PURE__ */ window.SP_REACT.createElement("div", {
+  }, s.ownerText), !bottom && s.subtitleText && /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: { fontSize: 16, opacity: 0.8, marginTop: 4 }
   }, s.subtitleText))));
 }

@@ -110,6 +110,8 @@ export const BOTTOM_SELECTED_GAP_DEG = 3.5;
 export const BOTTOM_TITLE_GAP_PX = 14;
 /** The name above the selected game never grows past this share of the screen width. */
 export const BOTTOM_TITLE_MAX_WIDTH_PCT = 44;
+/** Bottom layout: the custom text (vertically centred, away from the wheel) stays within this share of the width, clear of the selected game's name. */
+export const BOTTOM_OWNER_MAX_WIDTH_PCT = 40;
 /** Bottom layout: dark fade rising from the bottom, where the wheel sits (over the blurred backdrop, under the art). */
 export const BOTTOM_LAYOUT_WHEEL_VIGNETTE =
   "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.75) 28%, rgba(0,0,0,0.35) 48%, transparent 66%)";

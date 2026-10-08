@@ -58,6 +58,7 @@ import {
   BOTTOM_SELECTED_GAP_DEG,
   BOTTOM_TITLE_GAP_PX,
   BOTTOM_TITLE_MAX_WIDTH_PCT,
+  BOTTOM_OWNER_MAX_WIDTH_PCT,
   BOTTOM_LAYOUT_WHEEL_VIGNETTE,
 } from "./constants";
 
@@ -1093,12 +1094,36 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
           <div style={{ position: "absolute", [flip ? "left" : "right"]: 60, top: "48%", color: "#aaa", fontSize: 20 }}>{t.noGames}</div>
         )}
 
+        {/* Bottom layout: the custom text sits on its own, vertically centred on the
+            side away from the wheel; only the Ⓨ pill stays in the bottom corner. */}
+        {bottom && (
+          <div
+            data-dw="owner"
+            style={{
+              position: "absolute",
+              [flip ? "right" : "left"]: 40,
+              top: "50%",
+              transform: "translateY(-50%)",
+              maxWidth: `${BOTTOM_OWNER_MAX_WIDTH_PCT}vw`,
+              color: "#fff",
+              textShadow: "0 2px 8px #000",
+              textAlign: flip ? "right" : "left",
+              pointerEvents: "none",
+            }}
+          >
+            <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }}>{s.ownerText}</div>
+            {s.subtitleText && <div style={{ fontSize: 16, opacity: 0.8, marginTop: 4 }}>{s.subtitleText}</div>}
+          </div>
+        )}
+
         {/* Personalization: bottom corner on the artwork side */}
         <div
           style={{
             position: "absolute",
             [flip ? "right" : "left"]: 40,
-            bottom: 32,
+            // Bottom layout: the pill is alone here; its own 14 px bottom margin
+            // would lift it, so the corner sits that much lower.
+            bottom: bottom ? 32 - 14 : 32,
             color: "#fff",
             textShadow: "0 2px 8px #000",
             textAlign: flip ? "right" : "left",
@@ -1136,8 +1161,8 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
               )}
             </div>
           )}
-          <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }}>{s.ownerText}</div>
-          {s.subtitleText && <div style={{ fontSize: 16, opacity: 0.8, marginTop: 4 }}>{s.subtitleText}</div>}
+          {!bottom && <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }}>{s.ownerText}</div>}
+          {!bottom && s.subtitleText && <div style={{ fontSize: 16, opacity: 0.8, marginTop: 4 }}>{s.subtitleText}</div>}
         </div>
       </div>
     </Focusable>
