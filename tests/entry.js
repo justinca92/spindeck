@@ -1,5 +1,6 @@
 import * as React from "/opt/npm-tools/node_modules/react/index.js";
 import * as ReactDOMClient from "/opt/npm-tools/node_modules/react-dom/client.js";
+let patchFn;
 window.SP_REACT = React;
 const h = React.createElement;
 const B = { OK: 1, CANCEL: 2, SECONDARY: 3, OPTIONS: 4, DIR_UP: 9, DIR_DOWN: 10, DIR_LEFT: 11, DIR_RIGHT: 12, START: 14, LPAD_TOUCH: 19, LPAD_CLICK: 20, RPAD_TOUCH: 21, RPAD_CLICK: 22 };
@@ -15,8 +16,17 @@ const comp = (n) => (p) => h("div", { "data-c": n, "data-label": typeof p.label 
 window.DFL = { Focusable, GamepadButton: B, Navigation: { Navigate: (p) => (window.__nav = p), NavigateBack() {}, CloseSideMenus() {} },
   ButtonItem: comp("ButtonItem"), DialogButton: comp("DialogButton"), DropdownItem: comp("DropdownItem"), PanelSection: comp("PanelSection"), PanelSectionRow: comp("PanelSectionRow"),
   SliderField: comp("SliderField"), TextField: comp("TextField"), ToggleField: comp("ToggleField"), ModalRoot: comp("ModalRoot"), staticClasses: {}, showContextMenu() {}, showModal() {} };
-let patchFn;
-window.__DECKY_SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED_deckyLoaderAPIInit = { connect: () => ({ call: async (m) => (m === "get_settings" ? { ...(location.hash.endsWith("-off") ? { homeEnabled: false } : {}), ...(location.hash.startsWith("#bottom") ? { layout: "bottom", subtitleText: "Steam Deck OLED · 1TB" } : {}), ...(location.hash.includes("legacy") ? { heroV130: true } : {}), ...(location.hash.includes("qam-bottom") ? { layout: "bottom" } : {}), ownerText: "j1의 스팀덱", rotatePad: location.hash.endsWith("-right") ? "right" : "left", soundEnabled: false, hapticEnabled: location.hash === "#pulse" || location.hash === "#qam", hapticMode: "pulseShort", rawPadApi: location.hash !== "#nopad" } : true), routerHook: { addRoute: (p, c) => (window.__routeComp = c), addPatch: (p, f) => (patchFn = f), removePatch() {}, removeRoute() {} } }) };
+// Decky's RouterHook: patches per path in a Set (run in registration order),
+// add/remove re-render the router (DeckyRouterState.notifyUpdate).
+const routerState = { _routePatches: new Map(), bus: new EventTarget(), version: 0 };
+window.__routerHook = {
+  routerState,
+  addRoute: (p, c) => (window.__routeComp = c),
+  removeRoute() {},
+  addPatch(p, f) { if (!routerState._routePatches.has(p)) routerState._routePatches.set(p, new Set()); routerState._routePatches.get(p).add(f); patchFn = f; routerState.version++; routerState.bus.dispatchEvent(new Event("update")); return f; },
+  removePatch(p, f) { routerState._routePatches.get(p)?.delete(f); routerState.version++; routerState.bus.dispatchEvent(new Event("update")); },
+};
+window.__DECKY_SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED_deckyLoaderAPIInit = { connect: () => ({ call: async (m) => (m === "get_settings" ? { ...(location.hash.endsWith("-off") ? { homeEnabled: false } : {}), ...(location.hash.startsWith("#bottom") ? { layout: "bottom", subtitleText: "Steam Deck OLED · 1TB" } : {}), ...(location.hash.includes("legacy") ? { heroV130: true } : {}), ...(location.hash.includes("qam-bottom") ? { layout: "bottom" } : {}), ownerText: "j1의 스팀덱", rotatePad: location.hash.endsWith("-right") ? "right" : "left", soundEnabled: false, hapticEnabled: location.hash === "#pulse" || location.hash === "#qam", hapticMode: "pulseShort", rawPadApi: location.hash !== "#nopad" } : true), routerHook: window.__routerHook } ) };
 const apps = Array.from({ length: 30 }, (_, i) => ({ appid: 100 + i, app_type: 1, display_name: "Game " + i, installed: true, rt_last_time_played: 1000 - i, minutes_playtime_forever: i * 30 }));
 window.collectionStore = { GetCollection: () => ({ allApps: apps }) };
 window.appStore = { GetCustomHeroImageURLs: (a) => ["/hero" + (a.appid % 3) + ".png?" + a.appid], GetCustomVerticalCapsuleURLs: (a) => ["/cap" + (a.appid % 3) + ".png?" + a.appid] };
@@ -29,7 +39,8 @@ window.webpackChunksteamui = { push: ([, , cb]) => cb(fakeReq) };
 window.SteamClient = { Input: { TriggerHapticPulse: (...a) => window.__pulses.push(a), RegisterForControllerAnalogInputMessages: (cb) => { window.__analog = cb; return { unregister() { window.__ks.push("unreg"); } }; }, EnableControllerAnalogInputMessages: (v) => window.__ks.push("analog:" + v), SetKeyboardActionset: (a, b) => window.__ks.push("kb:" + a) }, Apps: { RegisterForAppDetails: () => ({ unregister() {} }) }, Settings: { GetCurrentLanguage: async () => "english" } };
 window.__start = async () => {
   const mod = await import(/* @vite-ignore */ ["", "plugin.js"].join("/"));
-  window.__plugin = mod.default();
+  // #decky-sgdb-first: SteamGridDB registers its home patch before Spindeck loads.
+  if (!location.hash.startsWith("#decky-sgdb-first")) window.__plugin = mod.default();
   await new Promise((r) => setTimeout(r, 50));
   const Recents = React.memo(() => h("button", null, "recent")); // Steam's recent-games row (memo)
   const Orig = () => h("div", { style: { height: "100%", overflowY: "auto", backgroundImage: "repeating-linear-gradient(90deg, #c33 0 40px, #36c 40px 80px)", backgroundAttachment: "local" }, id: "orighome" },
@@ -53,16 +64,17 @@ window.__start = async () => {
       const oType = child.type;
       const next = patch({ path: "/library/home", children: { ...React.cloneElement(child), type: child[IS_PATCHED] ? oType : (props) => h(oType, props) } }).children;
       next[IS_PATCHED] = true;
+      (window.__passes ||= []).push((patch.name || "?") + ">" + (next.type?.name || typeof next.type));
       child = next;
     }
     return child;
   };
   const findInTree = (node, filter) => {
-    if (!node || typeof node !== "object") return null;
+    if (!node || typeof node !== "object") return undefined;
     if (filter(node)) return node;
     if (Array.isArray(node)) { for (const x of node) { const r = findInTree(x, filter); if (r) return r; } return null; }
     for (const k of ["props", "children", "child", "sibling"]) { const r = findInTree(node[k], filter); if (r) return r; }
-    return null;
+    return undefined;
   };
   // SteamGridDB 1.7.x home patch, its first levels as in src/patches/homePatch.tsx.
   const sgdbReal = (props) => {
@@ -72,10 +84,8 @@ window.__start = async () => {
       afterPatch(ret.type, "type", (_, ret2) => {
         if (cache2) return cache2;
         const recents = findInTree(ret2, (x) => x?.props && "autoFocus" in x.props && "showBackground" in x.props);
-        if (recents) {
-          wrapReactType(recents);
-          afterPatch(recents.type, "type", (_, ret3) => { cache2 = ret2; window.__sgdbHit = (window.__sgdbHit || 0) + 1; return ret3; });
-        }
+        wrapReactType(recents); // unguarded, as in SteamGridDB: throws when there's no recents row
+        afterPatch(recents.type, "type", (_, ret3) => { cache2 = ret2; window.__sgdbHit = (window.__sgdbHit || 0) + 1; return ret3; });
         return ret2;
       });
       return ret;
@@ -84,7 +94,25 @@ window.__start = async () => {
   };
   // Steam's home route child: a memo component whose output holds the recents row.
   const SteamHomeRoute = React.memo(Orig);
-  const deckyTree = location.hash.startsWith("#decky-spindeck-first") ? deckyRoute(h(SteamHomeRoute), [patchFn, sgdbReal]) : location.hash.startsWith("#decky-sgdb-first") ? deckyRoute(h(SteamHomeRoute), [sgdbReal, patchFn]) : null;
+  let deckyTree = null;
+  if (location.hash.startsWith("#decky-")) {
+    // Plugins load in either order; Decky re-renders the router when patches change.
+    if (location.hash.startsWith("#decky-sgdb-first")) { window.__routerHook.addPatch("/library/home", sgdbReal); window.__plugin = mod.default(); }
+    else window.__routerHook.addPatch("/library/home", sgdbReal);
+    if (location.hash.startsWith("#decky-pingpong")) {
+      // A rival that also always moves itself last: we must give up, not loop forever.
+      const rival = (props) => { const set = routerState._routePatches.get("/library/home"); let last; set.forEach((x) => (last = x)); if (last !== rival) setTimeout(() => { window.__rivalMoves = (window.__rivalMoves || 0) + 1; window.__routerHook.removePatch("/library/home", rival); window.__routerHook.addPatch("/library/home", rival); }, 0); return props; };
+      window.__routerHook.addPatch("/library/home", rival);
+    }
+    const DeckyRouter = () => {
+      const [, force] = React.useState(0);
+      const seen = routerState.version;
+      // Like Decky's state provider (subscribed long before any plugin loads): never miss an update.
+      React.useLayoutEffect(() => { const l = () => force((n) => n + 1); routerState.bus.addEventListener("update", l); if (routerState.version !== seen) l(); return () => routerState.bus.removeEventListener("update", l); }, []);
+      return deckyRoute(h(SteamHomeRoute), [...(routerState._routePatches.get("/library/home") ?? [])]);
+    };
+    deckyTree = h(DeckyRouter);
+  }
   const sgdbTree = deckyTree ? deckyTree : location.hash.startsWith("#sgdb-after") ? sgdb(patchFn({ children: h(SteamHome) })).children : location.hash.startsWith("#sgdb-before") ? patchFn(sgdb({ children: h(SteamHome) })).children : null;
   const Flat = () => h("div", { id: "orighome" }, "unrecognised home layout", h("button", null, "only"));
   const tree = sgdbTree ? sgdbTree : location.hash.startsWith("#qam") ? window.__plugin.content : location.hash === "#flat" ? patchFn({ children: h(Flat) }).children : location.hash === "#page" ? h(window.__routeComp) : patchFn({ children: h(Orig) }).children;

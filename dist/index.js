@@ -3290,6 +3290,78 @@ function WheelHome({ original }) {
   }, original)))));
 }
 
+// src/homePatch.tsx
+var HOME_ROUTE = "/library/home";
+var SPINDECK_HOME = "data-spindeck-home";
+var MAX_MOVES = 4;
+var MOVE_WINDOW_MS = 30000;
+var BLIND_MOVES_MS = [2000, 8000, 20000];
+var active = false;
+var movePending = false;
+var moves = [];
+var timers = [];
+function homePatches() {
+  try {
+    const set = routerHook?.routerState?._routePatches?.get?.(HOME_ROUTE);
+    return set instanceof Set ? set : null;
+  } catch {
+    return null;
+  }
+}
+function lastOf(set) {
+  let last;
+  set.forEach((p) => last = p);
+  return last;
+}
+function moveToEnd() {
+  if (!active)
+    return;
+  moves.push(Date.now());
+  debug("home", "another plugin patches the home after us: moving our patch last");
+  routerHook.removePatch(HOME_ROUTE, patchHome);
+  routerHook.addPatch(HOME_ROUTE, patchHome);
+}
+function patchHome(props) {
+  const set = homePatches();
+  if (set && lastOf(set) !== patchHome) {
+    const now = Date.now();
+    moves = moves.filter((t) => now - t < MOVE_WINDOW_MS);
+    if (moves.length < MAX_MOVES && !movePending) {
+      movePending = true;
+      timers.push(setTimeout(() => {
+        movePending = false;
+        moveToEnd();
+      }, 0));
+    } else if (moves.length >= MAX_MOVES) {
+      debug("home", "another plugin keeps patching after us: showing Steam's home");
+    }
+    return props;
+  }
+  const original = props.children;
+  if (original?.type !== HomeSwitch && !original?.props?.[SPINDECK_HOME]) {
+    props.children = /* @__PURE__ */ window.SP_REACT.createElement(HomeSwitch, {
+      original,
+      ...{ [SPINDECK_HOME]: true }
+    });
+  }
+  return props;
+}
+function installHomePatch() {
+  active = true;
+  routerHook.addPatch(HOME_ROUTE, patchHome);
+  if (!homePatches()) {
+    for (const ms of BLIND_MOVES_MS)
+      timers.push(setTimeout(moveToEnd, ms));
+  }
+}
+function removeHomePatch() {
+  active = false;
+  timers.splice(0).forEach(clearTimeout);
+  movePending = false;
+  moves = [];
+  routerHook.removePatch(HOME_ROUTE, patchHome);
+}
+
 // src/links.ts
 var KOFI_URL = "https://ko-fi.com/jhw0806";
 var REPO_URL = "https://github.com/justinca92/spindeck";
@@ -3391,8 +3463,6 @@ var WheelIcon = () => /* @__PURE__ */ window.SP_REACT.createElement("svg", {
   cy: "12",
   r: "3"
 }));
-var HOME_ROUTE = "/library/home";
-var SPINDECK_HOME = "data-spindeck-home";
 function DeferredTextField({ label, initial, onCommit }) {
   const [text, setText] = useState(initial);
   const latest = useRef(initial);
@@ -3722,16 +3792,7 @@ var src_default = definePlugin(() => {
   }, /* @__PURE__ */ window.SP_REACT.createElement(WheelPage, {
     mode: "page"
   })), { exact: true });
-  const homePatch = routerHook.addPatch(HOME_ROUTE, (props) => {
-    const original = props.children;
-    if (original?.type !== HomeSwitch && !original?.props?.[SPINDECK_HOME]) {
-      props.children = /* @__PURE__ */ window.SP_REACT.createElement(HomeSwitch, {
-        original,
-        ...{ [SPINDECK_HOME]: true }
-      });
-    }
-    return props;
-  });
+  installHomePatch();
   return {
     name: "Spindeck",
     titleView: /* @__PURE__ */ window.SP_REACT.createElement("div", {
@@ -3745,7 +3806,7 @@ var src_default = definePlugin(() => {
     icon: /* @__PURE__ */ window.SP_REACT.createElement(WheelIcon, null),
     onDismount() {
       routerHook.removeRoute(ROUTE);
-      routerHook.removePatch(HOME_ROUTE, homePatch);
+      removeHomePatch();
       teardownAll();
       sweepLeftovers();
     }
@@ -3767,7 +3828,6 @@ function UpdateRow({ t }) {
   }, "⬆ ", t.updateTo(st.info.version))));
 }
 export {
-  HOME_ROUTE,
   ROUTE,
   src_default as default
 };
