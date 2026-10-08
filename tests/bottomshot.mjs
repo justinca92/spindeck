@@ -1,5 +1,5 @@
 // Bottom layout screenshots (rotating pad on each side): custom text vertically
-// centred away from the wheel, Ⓨ pill alone in the bottom corner.
+// level with the game title away from the wheel, Ⓨ pill right under it.
 import { chromium } from "/opt/node-tools/node_modules/playwright/index.mjs";
 import http from "http"; import fs from "fs"; import path from "path";
 const dir = path.resolve("out");
@@ -18,6 +18,8 @@ for (const mode of ["bottom", "bottom-right"]) {
   });
   console.log(mode, JSON.stringify(r), "errors", errs);
   if (r.mainMidY !== r.titleMidY) { console.log("FAIL: main text not level with the game title"); process.exitCode = 1; }
+  const gap = r.pill[1] - r.owner[3], sameSide = mode === "bottom" ? r.pill[2] === r.owner[2] : r.pill[0] === r.owner[0];
+  if (gap < 8 || gap > 16 || !sameSide) { console.log("FAIL: Today's game pill not right under the custom text", gap, sameSide); process.exitCode = 1; }
   await p.screenshot({ path: `out/${mode}.png` });
   await p.close();
 }

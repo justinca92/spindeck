@@ -60,6 +60,7 @@ import {
   BOTTOM_TITLE_MAX_WIDTH_PCT,
   BOTTOM_OWNER_MAX_WIDTH_PCT,
   BOTTOM_TITLE_LINE_PX,
+  BOTTOM_ROULETTE_GAP_PX,
   BOTTOM_LAYOUT_WHEEL_VIGNETTE,
 } from "./constants";
 
@@ -1034,6 +1035,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
     return { dir: f("dir"), down: f("down"), up: f("up"), ok: f("ok"), options: f("options"), menu: f("menu") };
   }, []);
 
+  const roulettePill = <RoulettePill state={roulette} accent={s.accentColor} label={roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette} />;
   return (
     <Focusable
       // @ts-ignore autoFocus exists at runtime
@@ -1185,20 +1187,34 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
           </div>
         )}
 
-        {/* Personalization: bottom corner on the artwork side */}
-        <div
+        {/* Bottom layout: the Ⓨ pill sits right under the custom text (which ends at
+            bottomTitleY), on the same side. */}
+        {bottom && (
+          <div
+            data-dw="roulette"
+            style={{
+              position: "absolute",
+              [flip ? "right" : "left"]: 40,
+              top: bottomTitleY + BOTTOM_ROULETTE_GAP_PX,
+              textAlign: flip ? "right" : "left",
+            }}
+          >
+            {roulettePill}
+          </div>
+        )}
+
+        {/* Personalization: bottom corner on the artwork side (side layout) */}
+        {!bottom && <div
           style={{
             position: "absolute",
             [flip ? "right" : "left"]: 40,
-            // Bottom layout: the pill is alone here; its own 14 px bottom margin
-            // would lift it, so the corner sits that much lower.
-            bottom: bottom ? 32 - 14 : 32,
+            bottom: 32,
             color: "#fff",
             textShadow: "0 2px 8px #000",
             textAlign: flip ? "right" : "left",
           }}
         >
-          <RoulettePill state={roulette} accent={s.accentColor} label={roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette} />
+          {roulettePill}
           {current && (
             <div
               style={{
@@ -1232,7 +1248,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
           )}
           {!bottom && <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }}>{s.ownerText}</div>}
           {!bottom && s.subtitleText && <div style={{ fontSize: 16, opacity: 0.8, marginTop: 4 }}>{s.subtitleText}</div>}
-        </div>
+        </div>}
       </div>
     </Focusable>
   );

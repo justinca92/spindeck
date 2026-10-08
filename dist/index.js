@@ -1517,6 +1517,7 @@ var BOTTOM_SELECTED_GAP_DEG = 3.5;
 var BOTTOM_TITLE_GAP_PX = 14;
 var BOTTOM_TITLE_MAX_WIDTH_PCT = 44;
 var BOTTOM_TITLE_LINE_PX = 28;
+var BOTTOM_ROULETTE_GAP_PX = 12;
 var BOTTOM_OWNER_MAX_WIDTH_PCT = 40;
 var BOTTOM_LAYOUT_WHEEL_VIGNETTE = "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.75) 28%, rgba(0,0,0,0.35) 48%, transparent 66%)";
 
@@ -2282,6 +2283,11 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     const f = (name) => (e) => latest.current[name]?.(e);
     return { dir: f("dir"), down: f("down"), up: f("up"), ok: f("ok"), options: f("options"), menu: f("menu") };
   }, []);
+  const roulettePill = /* @__PURE__ */ window.SP_REACT.createElement(RoulettePill, {
+    state: roulette,
+    accent: s.accentColor,
+    label: roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette
+  });
   return /* @__PURE__ */ window.SP_REACT.createElement(Focusable, {
     autoFocus: true,
     noFocusRing: true,
@@ -2416,20 +2422,24 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     style: { height: INFO_ROW_HEIGHT, display: "flex", alignItems: "center" }
   }, s.subtitleText && /* @__PURE__ */ window.SP_REACT.createElement("span", {
     style: { ...ownerLine, fontSize: 16, opacity: 0.8 }
-  }, s.subtitleText))), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+  }, s.subtitleText))), bottom && /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    "data-dw": "roulette",
     style: {
       position: "absolute",
       [flip ? "right" : "left"]: 40,
-      bottom: bottom ? 32 - 14 : 32,
+      top: bottomTitleY + BOTTOM_ROULETTE_GAP_PX,
+      textAlign: flip ? "right" : "left"
+    }
+  }, roulettePill), !bottom && /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: {
+      position: "absolute",
+      [flip ? "right" : "left"]: 40,
+      bottom: 32,
       color: "#fff",
       textShadow: "0 2px 8px #000",
       textAlign: flip ? "right" : "left"
     }
-  }, /* @__PURE__ */ window.SP_REACT.createElement(RoulettePill, {
-    state: roulette,
-    accent: s.accentColor,
-    label: roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette
-  }), current && /* @__PURE__ */ window.SP_REACT.createElement("div", {
+  }, roulettePill, current && /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",

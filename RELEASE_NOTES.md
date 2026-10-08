@@ -10,7 +10,7 @@
 - 🖼️ **Hero art v1.3.0 style** (side layout): a new switch in Display brings back the 1.3.0 look of the hero art: in the middle of the screen, with 1.3.0's blurred background and fades (without the thin white line some art showed above and below it in 1.3.0). Off by default.
 
 **Changed**
-- 🎡 **Bottom layout: your custom text now sits level with the selected game's name**, on the side away from the wheel, and the Ⓨ "Today's game?" button moves down to the corner.
+- 🎡 **Bottom layout: your custom text now sits level with the selected game's name**, on the side away from the wheel, with the Ⓨ "Today's game?" button right under it.
 
 **Fixed**
 - 🧩 **"An error occurred while rendering this content" on the home screen with SteamGridDB installed.** With SteamGridDB's featured-capsule option on, the home screen could show Decky's error page instead of the wheel, depending on which plugin loaded first. Both plugins now work together in any order, with no setting to change. Thanks to Kida-Tech for the detailed report (#2).
