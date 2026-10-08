@@ -1518,6 +1518,7 @@ var BOTTOM_TITLE_GAP_PX = 14;
 var BOTTOM_TITLE_MAX_WIDTH_PCT = 44;
 var BOTTOM_TITLE_LINE_PX = 28;
 var BOTTOM_ROULETTE_GAP_PX = 12;
+var BOTTOM_OWNER_CENTER_PCT = 83.3;
 var BOTTOM_OWNER_MAX_WIDTH_PCT = 40;
 var BOTTOM_LAYOUT_WHEEL_VIGNETTE = "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.75) 28%, rgba(0,0,0,0.35) 48%, transparent 66%)";
 
@@ -2403,34 +2404,23 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     style: {
       position: "absolute",
       [flip ? "right" : "left"]: 40,
-      top: bottomTitleY,
-      transform: "translateY(-100%)",
+      top: `${BOTTOM_OWNER_CENTER_PCT}%`,
+      transform: "translateY(-50%)",
       display: "flex",
       flexDirection: "column",
       alignItems: flip ? "flex-end" : "flex-start",
-      gap: 6,
       color: "#fff",
-      textShadow: "0 2px 8px #000",
-      pointerEvents: "none"
+      textShadow: "0 2px 8px #000"
     }
-  }, /* @__PURE__ */ window.SP_REACT.createElement("div", {
-    "data-dw": "owner-main",
-    style: { height: BOTTOM_TITLE_LINE_PX, display: "flex", alignItems: "center" }
   }, /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    "data-dw": "owner-main",
     style: { ...ownerLine, fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }
-  }, s.ownerText)), /* @__PURE__ */ window.SP_REACT.createElement("div", {
-    style: { height: INFO_ROW_HEIGHT, display: "flex", alignItems: "center" }
-  }, s.subtitleText && /* @__PURE__ */ window.SP_REACT.createElement("span", {
-    style: { ...ownerLine, fontSize: 16, opacity: 0.8 }
-  }, s.subtitleText))), bottom && /* @__PURE__ */ window.SP_REACT.createElement("div", {
+  }, s.ownerText), s.subtitleText && /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    style: { ...ownerLine, fontSize: 16, opacity: 0.8, marginTop: 4 }
+  }, s.subtitleText), /* @__PURE__ */ window.SP_REACT.createElement("div", {
     "data-dw": "roulette",
-    style: {
-      position: "absolute",
-      [flip ? "right" : "left"]: 40,
-      top: bottomTitleY + BOTTOM_ROULETTE_GAP_PX,
-      textAlign: flip ? "right" : "left"
-    }
-  }, roulettePill), !bottom && /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: { marginTop: BOTTOM_ROULETTE_GAP_PX, marginBottom: -14 }
+  }, roulettePill)), !bottom && /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: {
       position: "absolute",
       [flip ? "right" : "left"]: 40,

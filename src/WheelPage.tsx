@@ -60,6 +60,7 @@ import {
   BOTTOM_TITLE_MAX_WIDTH_PCT,
   BOTTOM_OWNER_MAX_WIDTH_PCT,
   BOTTOM_TITLE_LINE_PX,
+  BOTTOM_OWNER_CENTER_PCT,
   BOTTOM_ROULETTE_GAP_PX,
   BOTTOM_LAYOUT_WHEEL_VIGNETTE,
 } from "./constants";
@@ -1157,49 +1158,30 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
           <div style={{ position: "absolute", [flip ? "left" : "right"]: 60, top: "48%", color: "#aaa", fontSize: 20 }}>{t.noGames}</div>
         )}
 
-        {/* Bottom layout: the custom text sits on the side away from the wheel, on the
-            selected game's lines: the main text centred on the name's line, the
-            subtitle on the info line's. Same anchor and row heights as the name
-            block, so they stay level. Only the Ⓨ pill stays in the bottom corner. */}
+        {/* Bottom layout: the custom text, with the Ⓨ "Today's game?" pill right
+            under it, on the side away from the wheel, centred in the lower third
+            of the screen. */}
         {bottom && (
           <div
             data-dw="owner"
             style={{
               position: "absolute",
               [flip ? "right" : "left"]: 40,
-              top: bottomTitleY,
-              transform: "translateY(-100%)",
+              top: `${BOTTOM_OWNER_CENTER_PCT}%`,
+              transform: "translateY(-50%)",
               display: "flex",
               flexDirection: "column",
               alignItems: flip ? "flex-end" : "flex-start",
-              gap: 6,
               color: "#fff",
               textShadow: "0 2px 8px #000",
-              pointerEvents: "none",
             }}
           >
-            <div data-dw="owner-main" style={{ height: BOTTOM_TITLE_LINE_PX, display: "flex", alignItems: "center" }}>
-              <span style={{ ...ownerLine, fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }}>{s.ownerText}</span>
+            <span data-dw="owner-main" style={{ ...ownerLine, fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }}>{s.ownerText}</span>
+            {s.subtitleText && <span style={{ ...ownerLine, fontSize: 16, opacity: 0.8, marginTop: 4 }}>{s.subtitleText}</span>}
+            {/* The pill's own 14 px bottom margin would push the block off centre. */}
+            <div data-dw="roulette" style={{ marginTop: BOTTOM_ROULETTE_GAP_PX, marginBottom: -14 }}>
+              {roulettePill}
             </div>
-            <div style={{ height: INFO_ROW_HEIGHT, display: "flex", alignItems: "center" }}>
-              {s.subtitleText && <span style={{ ...ownerLine, fontSize: 16, opacity: 0.8 }}>{s.subtitleText}</span>}
-            </div>
-          </div>
-        )}
-
-        {/* Bottom layout: the Ⓨ pill sits right under the custom text (which ends at
-            bottomTitleY), on the same side. */}
-        {bottom && (
-          <div
-            data-dw="roulette"
-            style={{
-              position: "absolute",
-              [flip ? "right" : "left"]: 40,
-              top: bottomTitleY + BOTTOM_ROULETTE_GAP_PX,
-              textAlign: flip ? "right" : "left",
-            }}
-          >
-            {roulettePill}
           </div>
         )}
 

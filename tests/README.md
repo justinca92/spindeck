@@ -11,7 +11,7 @@ using stubbed Decky/Steam globals (`entry.js`).
     node tests/jank.mjs   # no scroll fighting / style churn while Steam scrolls
     python3 tests/py/t.py # backend: missing/corrupt/non-dict settings, uninstall
     node tests/sgdb.mjs   # another plugin (SteamGridDB) patching the home route first or last: no React #130
-    node tests/bottomshot.mjs # bottom layout: custom text mid-screen away from the wheel, Ⓨ pill in the corner (PNG in out/)
+    node tests/bottomshot.mjs # bottom layout: custom text in the lower third away from the wheel, Ⓨ pill right under it (PNG in out/)
     node tests/heropos.mjs  # side layout: hero art v1.3.0 style on/off; the switch shows only for the side layout
     node tests/perf.mjs   # 40 fast D-pad steps: CPU time, hero mounts, style writes
 

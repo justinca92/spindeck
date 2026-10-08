@@ -114,7 +114,9 @@ export const BOTTOM_TITLE_MAX_WIDTH_PCT = 44;
 export const BOTTOM_TITLE_LINE_PX = 28;
 /** Bottom layout: gap (px) between the custom text and the Ⓨ "Today's game?" pill right under it. */
 export const BOTTOM_ROULETTE_GAP_PX = 12;
-/** Bottom layout: the custom text (level with the selected game's name, away from the wheel) stays within this share of the width, clear of the selected game's name. */
+/** Bottom layout: the custom text block (with the Ⓨ pill) is centred at this height: the middle of the screen's lower third. */
+export const BOTTOM_OWNER_CENTER_PCT = 83.3;
+/** Bottom layout: the custom text (lower third, away from the wheel) stays within this share of the width, clear of the selected game's name. */
 export const BOTTOM_OWNER_MAX_WIDTH_PCT = 40;
 /** Bottom layout: dark fade rising from the bottom, where the wheel sits (over the blurred backdrop, under the art). */
 export const BOTTOM_LAYOUT_WHEEL_VIGNETTE =
