@@ -60,7 +60,8 @@ import {
   BOTTOM_TITLE_MAX_WIDTH_PCT,
   BOTTOM_OWNER_MAX_WIDTH_PCT,
   BOTTOM_TITLE_LINE_PX,
-  BOTTOM_OWNER_CENTER_PCT,
+  BOTTOM_OWNER_BELOW_ART_PX,
+  HERO_ASPECT,
   BOTTOM_ROULETTE_GAP_PX,
   BOTTOM_LAYOUT_WHEEL_VIGNETTE,
 } from "./constants";
@@ -982,6 +983,11 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   // Bottom layout: where the name block above the selected game ends (its bottom);
   // the custom text on the other side uses the same anchor so the two stay level.
   const bottomTitleY = geom.cy - geom.R - (BASE_CAPSULE_H * s.capsuleScale) / 2 - BOTTOM_TITLE_GAP_PX;
+  // Where the bottom layout's hero art ends for a standard hero image (it spans the
+  // full width from the top, so this follows the screen's shape). Fixed, not per
+  // game, so the text never jumps while spinning.
+  const ownerTop =
+    Math.min(size.h * 0.92, (size.w + HERO_EDGE_CLIP_PX * 2) / HERO_ASPECT - HERO_EDGE_CLIP_PX) + BOTTOM_OWNER_BELOW_ART_PX;
   const ownerLine: CSSProperties = { display: "block", maxWidth: `${BOTTOM_OWNER_MAX_WIDTH_PCT}vw`, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
   // The icon info line for the resting game (playtime · last played · achievements · friends).
   const renderInfo = () =>
@@ -1159,16 +1165,15 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
         )}
 
         {/* Bottom layout: the custom text, with the Ⓨ "Today's game?" pill right
-            under it, on the side away from the wheel, centred in the lower third
-            of the screen. */}
+            under it, on the side away from the wheel, just below where the hero
+            art ends (its fade into the backdrop). */}
         {bottom && (
           <div
             data-dw="owner"
             style={{
               position: "absolute",
               [flip ? "right" : "left"]: 40,
-              top: `${BOTTOM_OWNER_CENTER_PCT}%`,
-              transform: "translateY(-50%)",
+              top: ownerTop,
               display: "flex",
               flexDirection: "column",
               alignItems: flip ? "flex-end" : "flex-start",

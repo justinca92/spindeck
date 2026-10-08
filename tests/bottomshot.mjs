@@ -1,5 +1,5 @@
 // Bottom layout screenshots (rotating pad on each side): custom text vertically
-// centred in the lower third away from the wheel, Ⓨ pill right under it.
+// just below the hero art, away from the wheel, Ⓨ pill right under it.
 import { chromium } from "/opt/node-tools/node_modules/playwright/index.mjs";
 import http from "http"; import fs from "fs"; import path from "path";
 const dir = path.resolve("out");
@@ -13,12 +13,13 @@ for (const mode of ["bottom", "bottom-right"]) {
     const pill = [...document.querySelectorAll("div")].find((d) => d.style.borderRadius === "999px");
     const owner = document.querySelector('[data-dw="owner"]'), main = document.querySelector('[data-dw="owner-main"]');
     const pillBox = owner.querySelector('[data-dw="roulette"] > div');
-    return { owner: box(owner), main: box(main), title: box(document.querySelector('[data-dw="title"]')), pill: box(pillBox), H: innerHeight };
+    const art = [...document.querySelectorAll(".dw-hero")].pop();
+    return { owner: box(owner), main: box(main), title: box(document.querySelector('[data-dw="title"]')), pill: box(pillBox), art: box(art), H: innerHeight };
   });
   console.log(mode, JSON.stringify(r), "errors", errs);
-  const mid = (r.owner[1] + r.owner[3]) / 2, want = r.H * 0.833;
+  const want = r.art[3] + 24;
   const under = r.pill[1] - r.main[3], sameSide = mode === "bottom" ? r.pill[2] === r.main[2] : r.pill[0] === r.main[0];
-  if (Math.abs(mid - want) > 4) { console.log("FAIL: custom text block not centred in the lower third", mid, want); process.exitCode = 1; }
+  if (Math.abs(r.owner[1] - want) > 4) { console.log("FAIL: custom text not just below the hero art", r.owner[1], want); process.exitCode = 1; }
   if (under < 8 || under > 50 || !sameSide) { console.log("FAIL: Today's game pill not right under the custom text", under, sameSide); process.exitCode = 1; }
   await p.screenshot({ path: `out/${mode}.png` });
   await p.close();

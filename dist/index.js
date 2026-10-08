@@ -1518,7 +1518,8 @@ var BOTTOM_TITLE_GAP_PX = 14;
 var BOTTOM_TITLE_MAX_WIDTH_PCT = 44;
 var BOTTOM_TITLE_LINE_PX = 28;
 var BOTTOM_ROULETTE_GAP_PX = 12;
-var BOTTOM_OWNER_CENTER_PCT = 83.3;
+var HERO_ASPECT = 1920 / 620;
+var BOTTOM_OWNER_BELOW_ART_PX = 24;
 var BOTTOM_OWNER_MAX_WIDTH_PCT = 40;
 var BOTTOM_LAYOUT_WHEEL_VIGNETTE = "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.75) 28%, rgba(0,0,0,0.35) 48%, transparent 66%)";
 
@@ -2237,6 +2238,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   const bottom = layout === "bottom";
   const geom = wheelGeom(layout, flip, size.w, size.h, s.wheelSizePct);
   const bottomTitleY = geom.cy - geom.R - BASE_CAPSULE_H * s.capsuleScale / 2 - BOTTOM_TITLE_GAP_PX;
+  const ownerTop = Math.min(size.h * 0.92, (size.w + HERO_EDGE_CLIP_PX * 2) / HERO_ASPECT - HERO_EDGE_CLIP_PX) + BOTTOM_OWNER_BELOW_ART_PX;
   const ownerLine = { display: "block", maxWidth: `${BOTTOM_OWNER_MAX_WIDTH_PCT}vw`, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
   const renderInfo = () => current && infoReady ? /* @__PURE__ */ window.SP_REACT.createElement(InfoRow, {
     key: `info-${current.appid}`,
@@ -2404,8 +2406,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     style: {
       position: "absolute",
       [flip ? "right" : "left"]: 40,
-      top: `${BOTTOM_OWNER_CENTER_PCT}%`,
-      transform: "translateY(-50%)",
+      top: ownerTop,
       display: "flex",
       flexDirection: "column",
       alignItems: flip ? "flex-end" : "flex-start",
