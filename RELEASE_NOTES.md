@@ -8,7 +8,7 @@
 - ⬆️ **Update right from the panel.** Press **Check for updates** at the bottom of the Spindeck panel; if there's a newer version, **Update to vX** installs it in place after Decky asks you to confirm once. Your settings are kept. Spindeck only contacts GitHub when you press the button. (This works from 1.4.1 on, so this one update still goes through the zip below.)
 
 **Changed**
-- 🎡 **Bottom layout: your custom text now sits in the middle of the screen**, on the side away from the wheel, and the Ⓨ "Today's game?" button moves down to the corner.
+- 🎡 **Bottom layout: your custom text now sits level with the selected game's name**, on the side away from the wheel, and the Ⓨ "Today's game?" button moves down to the corner.
 
 **Fixed**
 - 🧩 **"An error occurred while rendering this content" on the home screen with SteamGridDB installed.** With SteamGridDB's featured-capsule option on, the home screen could show Decky's error page instead of the wheel, depending on which plugin loaded first. Both plugins now work together in any order, with no setting to change. Thanks to Kida-Tech for the detailed report (#2).

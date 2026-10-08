@@ -59,6 +59,7 @@ import {
   BOTTOM_TITLE_GAP_PX,
   BOTTOM_TITLE_MAX_WIDTH_PCT,
   BOTTOM_OWNER_MAX_WIDTH_PCT,
+  BOTTOM_TITLE_LINE_PX,
   BOTTOM_LAYOUT_WHEEL_VIGNETTE,
 } from "./constants";
 
@@ -921,6 +922,10 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   const layout: WheelLayout = s.layout === "bottom" ? "bottom" : "side";
   const bottom = layout === "bottom";
   const geom = wheelGeom(layout, flip, size.w, size.h, s.wheelSizePct);
+  // Bottom layout: where the name block above the selected game ends (its bottom);
+  // the custom text on the other side uses the same anchor so the two stay level.
+  const bottomTitleY = geom.cy - geom.R - (BASE_CAPSULE_H * s.capsuleScale) / 2 - BOTTOM_TITLE_GAP_PX;
+  const ownerLine: CSSProperties = { display: "block", maxWidth: `${BOTTOM_OWNER_MAX_WIDTH_PCT}vw`, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
   // The icon info line for the resting game (playtime · last played · achievements · friends).
   const renderInfo = () =>
     current && infoReady ? (
@@ -1045,7 +1050,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
             style={{
               position: "absolute",
               left: geom.cx,
-              top: geom.cy - geom.R - (BASE_CAPSULE_H * s.capsuleScale) / 2 - BOTTOM_TITLE_GAP_PX,
+              top: bottomTitleY,
               transform: "translate(-50%, -100%)",
               display: "flex",
               flexDirection: "column",
@@ -1065,6 +1070,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
                 textOverflow: "ellipsis",
                 color: s.accentColor,
                 fontSize: 22,
+                lineHeight: `${BOTTOM_TITLE_LINE_PX}px`,
                 fontWeight: 800,
                 letterSpacing: "0.04em",
               }}
@@ -1094,25 +1100,33 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
           <div style={{ position: "absolute", [flip ? "left" : "right"]: 60, top: "48%", color: "#aaa", fontSize: 20 }}>{t.noGames}</div>
         )}
 
-        {/* Bottom layout: the custom text sits on its own, vertically centred on the
-            side away from the wheel; only the Ⓨ pill stays in the bottom corner. */}
+        {/* Bottom layout: the custom text sits on the side away from the wheel, on the
+            selected game's lines: the main text centred on the name's line, the
+            subtitle on the info line's. Same anchor and row heights as the name
+            block, so they stay level. Only the Ⓨ pill stays in the bottom corner. */}
         {bottom && (
           <div
             data-dw="owner"
             style={{
               position: "absolute",
               [flip ? "right" : "left"]: 40,
-              top: "50%",
-              transform: "translateY(-50%)",
-              maxWidth: `${BOTTOM_OWNER_MAX_WIDTH_PCT}vw`,
+              top: bottomTitleY,
+              transform: "translateY(-100%)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: flip ? "flex-end" : "flex-start",
+              gap: 6,
               color: "#fff",
               textShadow: "0 2px 8px #000",
-              textAlign: flip ? "right" : "left",
               pointerEvents: "none",
             }}
           >
-            <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }}>{s.ownerText}</div>
-            {s.subtitleText && <div style={{ fontSize: 16, opacity: 0.8, marginTop: 4 }}>{s.subtitleText}</div>}
+            <div data-dw="owner-main" style={{ height: BOTTOM_TITLE_LINE_PX, display: "flex", alignItems: "center" }}>
+              <span style={{ ...ownerLine, fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }}>{s.ownerText}</span>
+            </div>
+            <div style={{ height: INFO_ROW_HEIGHT, display: "flex", alignItems: "center" }}>
+              {s.subtitleText && <span style={{ ...ownerLine, fontSize: 16, opacity: 0.8 }}>{s.subtitleText}</span>}
+            </div>
           </div>
         )}
 

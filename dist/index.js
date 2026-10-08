@@ -1511,6 +1511,7 @@ var BOTTOM_SELECTED_Y = 0.7;
 var BOTTOM_SELECTED_GAP_DEG = 3.5;
 var BOTTOM_TITLE_GAP_PX = 14;
 var BOTTOM_TITLE_MAX_WIDTH_PCT = 44;
+var BOTTOM_TITLE_LINE_PX = 28;
 var BOTTOM_OWNER_MAX_WIDTH_PCT = 40;
 var BOTTOM_LAYOUT_WHEEL_VIGNETTE = "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.75) 28%, rgba(0,0,0,0.35) 48%, transparent 66%)";
 
@@ -2185,6 +2186,8 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
   const layout = s.layout === "bottom" ? "bottom" : "side";
   const bottom = layout === "bottom";
   const geom = wheelGeom(layout, flip, size.w, size.h, s.wheelSizePct);
+  const bottomTitleY = geom.cy - geom.R - BASE_CAPSULE_H * s.capsuleScale / 2 - BOTTOM_TITLE_GAP_PX;
+  const ownerLine = { display: "block", maxWidth: `${BOTTOM_OWNER_MAX_WIDTH_PCT}vw`, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
   const renderInfo = () => current && infoReady ? /* @__PURE__ */ window.SP_REACT.createElement(InfoRow, {
     key: `info-${current.appid}`,
     playtime: t.playtimeShort(Math.max(overviewMinutes(current.overview), ex?.minutes ?? 0)),
@@ -2296,7 +2299,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     style: {
       position: "absolute",
       left: geom.cx,
-      top: geom.cy - geom.R - BASE_CAPSULE_H * s.capsuleScale / 2 - BOTTOM_TITLE_GAP_PX,
+      top: bottomTitleY,
       transform: "translate(-50%, -100%)",
       display: "flex",
       flexDirection: "column",
@@ -2315,6 +2318,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
       textOverflow: "ellipsis",
       color: s.accentColor,
       fontSize: 22,
+      lineHeight: `${BOTTOM_TITLE_LINE_PX}px`,
       fontWeight: 800,
       letterSpacing: "0.04em"
     }
@@ -2344,19 +2348,26 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     style: {
       position: "absolute",
       [flip ? "right" : "left"]: 40,
-      top: "50%",
-      transform: "translateY(-50%)",
-      maxWidth: `${BOTTOM_OWNER_MAX_WIDTH_PCT}vw`,
+      top: bottomTitleY,
+      transform: "translateY(-100%)",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: flip ? "flex-end" : "flex-start",
+      gap: 6,
       color: "#fff",
       textShadow: "0 2px 8px #000",
-      textAlign: flip ? "right" : "left",
       pointerEvents: "none"
     }
   }, /* @__PURE__ */ window.SP_REACT.createElement("div", {
-    style: { fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }
-  }, s.ownerText), s.subtitleText && /* @__PURE__ */ window.SP_REACT.createElement("div", {
-    style: { fontSize: 16, opacity: 0.8, marginTop: 4 }
-  }, s.subtitleText)), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    "data-dw": "owner-main",
+    style: { height: BOTTOM_TITLE_LINE_PX, display: "flex", alignItems: "center" }
+  }, /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    style: { ...ownerLine, fontSize: 34, fontWeight: 800, letterSpacing: -0.5 }
+  }, s.ownerText)), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: { height: INFO_ROW_HEIGHT, display: "flex", alignItems: "center" }
+  }, s.subtitleText && /* @__PURE__ */ window.SP_REACT.createElement("span", {
+    style: { ...ownerLine, fontSize: 16, opacity: 0.8 }
+  }, s.subtitleText))), /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: {
       position: "absolute",
       [flip ? "right" : "left"]: 40,

@@ -6,11 +6,11 @@ const dir = path.resolve("out");
 const srv = http.createServer((q, r) => { const f2 = path.join(dir, (q.url === "/" ? "index.html" : q.url).split("?")[0].split("#")[0]); r.setHeader("content-type", f2.endsWith(".js") ? "text/javascript" : "text/html"); fs.createReadStream(f2).on("error", () => { r.statusCode = 404; r.end(); }).pipe(r); }).listen(8779);
 const b = await chromium.launch();
 let fail = 0;
-for (const mode of ["sgdb-after", "sgdb-before", "sgdb-after-off", "sgdb-before-off"]) {
+for (const mode of ["sgdb-after", "sgdb-before", "sgdb-after-off", "sgdb-before-off", "decky-spindeck-first", "decky-sgdb-first", "decky-spindeck-first-off", "decky-sgdb-first-off"]) {
   const p = await b.newPage({ viewport: { width: 1280, height: 800 } }); const errs = [];
   p.on("pageerror", (e) => errs.push(String(e))); p.on("console", (m) => m.type() === "error" && errs.push(m.text()));
   await p.goto("http://localhost:8779/#" + mode); await p.waitForFunction(() => window.__start); await p.evaluate(() => window.__start()); await p.waitForTimeout(1500);
-  const r = await p.evaluate(() => ({ wheel: !!document.querySelector("[data-spindeck-wheel]"), original: !!document.getElementById("orighome") }));
+  const r = await p.evaluate(() => ({ wheel: !!document.querySelector("[data-spindeck-wheel]"), original: !!document.getElementById("orighome"), sgdbHit: window.__sgdbHit || 0 }));
   const want = mode.endsWith("-off") ? r.original && !r.wheel : r.wheel;
   const ok = want && !errs.some((e) => /#130|invalid|Element type/i.test(e));
   if (!ok) fail++;

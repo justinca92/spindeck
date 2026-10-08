@@ -31,9 +31,10 @@ window.__start = async () => {
   const mod = await import(/* @vite-ignore */ ["", "plugin.js"].join("/"));
   window.__plugin = mod.default();
   await new Promise((r) => setTimeout(r, 50));
+  const Recents = React.memo(() => h("button", null, "recent")); // Steam's recent-games row (memo)
   const Orig = () => h("div", { style: { height: "100%", overflowY: "auto", backgroundImage: "repeating-linear-gradient(90deg, #c33 0 40px, #36c 40px 80px)", backgroundAttachment: "local" }, id: "orighome" },
     h("div", { style: { position: "absolute", height: 0 } }),
-    h("div", { style: { height: 561, background: "#333" } }, h("button", null, "recent")),
+    h("div", { style: { height: 561, background: "#333" } }, h(Recents, { autoFocus: true, showBackground: true })),
     h("div", { id: "sec" }, h("div", null, h("div", { id: "tabs", style: { height: 58, background: "#2a2f38" } }, h("button", { style: { background: "transparent" } }, "tab"), h("button", { id: "friends", style: { background: "transparent" } }, "friends"), h("button", { style: { background: "transparent" } }, "recommended")), h("div", { style: { height: 1500 } }, h("button", null, "row1"), h("div", { style: { height: 300 } }), h("button", null, "row2")))));
   // Another plugin patching the same route like SteamGridDB's "uniform featured" (#2):
   // Decky's afterPatch on the element's type, then wrapReactType (`{ ...type }`) on its output.
@@ -43,7 +44,48 @@ window.__start = async () => {
   const sgdb = (props) => { afterPatch(props.children, "type", (_, ret) => { wrapReactType(ret); afterPatch(ret.type, "type", (_, ret2) => ret2); return ret; }); return props; };
   const OrigMemo = React.memo(Orig);
   const SteamHome = () => h(OrigMemo); // Steam's home renders a memo element, so the copy stays valid
-  const sgdbTree = location.hash.startsWith("#sgdb-after") ? sgdb(patchFn({ children: h(SteamHome) })).children : location.hash.startsWith("#sgdb-before") ? patchFn(sgdb({ children: h(SteamHome) })).children : null;
+  // Decky's real route patching (router-hook processList): every patch gets a fresh
+  // clone of the route child; a child not yet patched gets a wrapper type; patches run
+  // in registration order, each on the previous one's output, marked isPatched.
+  const IS_PATCHED = Symbol("isPatched");
+  const deckyRoute = (child, patches) => {
+    for (const patch of patches) {
+      const oType = child.type;
+      const next = patch({ path: "/library/home", children: { ...React.cloneElement(child), type: child[IS_PATCHED] ? oType : (props) => h(oType, props) } }).children;
+      next[IS_PATCHED] = true;
+      child = next;
+    }
+    return child;
+  };
+  const findInTree = (node, filter) => {
+    if (!node || typeof node !== "object") return null;
+    if (filter(node)) return node;
+    if (Array.isArray(node)) { for (const x of node) { const r = findInTree(x, filter); if (r) return r; } return null; }
+    for (const k of ["props", "children", "child", "sibling"]) { const r = findInTree(node[k], filter); if (r) return r; }
+    return null;
+  };
+  // SteamGridDB 1.7.x home patch, its first levels as in src/patches/homePatch.tsx.
+  const sgdbReal = (props) => {
+    afterPatch(props.children, "type", (_, ret) => {
+      let cache2 = null;
+      wrapReactType(ret);
+      afterPatch(ret.type, "type", (_, ret2) => {
+        if (cache2) return cache2;
+        const recents = findInTree(ret2, (x) => x?.props && "autoFocus" in x.props && "showBackground" in x.props);
+        if (recents) {
+          wrapReactType(recents);
+          afterPatch(recents.type, "type", (_, ret3) => { cache2 = ret2; window.__sgdbHit = (window.__sgdbHit || 0) + 1; return ret3; });
+        }
+        return ret2;
+      });
+      return ret;
+    });
+    return props;
+  };
+  // Steam's home route child: a memo component whose output holds the recents row.
+  const SteamHomeRoute = React.memo(Orig);
+  const deckyTree = location.hash.startsWith("#decky-spindeck-first") ? deckyRoute(h(SteamHomeRoute), [patchFn, sgdbReal]) : location.hash.startsWith("#decky-sgdb-first") ? deckyRoute(h(SteamHomeRoute), [sgdbReal, patchFn]) : null;
+  const sgdbTree = deckyTree ? deckyTree : location.hash.startsWith("#sgdb-after") ? sgdb(patchFn({ children: h(SteamHome) })).children : location.hash.startsWith("#sgdb-before") ? patchFn(sgdb({ children: h(SteamHome) })).children : null;
   const Flat = () => h("div", { id: "orighome" }, "unrecognised home layout", h("button", null, "only"));
   const tree = sgdbTree ? sgdbTree : location.hash === "#qam" ? window.__plugin.content : location.hash === "#flat" ? patchFn({ children: h(Flat) }).children : location.hash === "#page" ? h(window.__routeComp) : patchFn({ children: h(Orig) }).children;
   const hdr = document.createElement("div"); hdr.id = "steamhdr"; hdr.style.cssText = "position:fixed;top:0;left:0;right:0;height:40px;background:rgba(0,0,0,0.5);backdrop-filter:blur(20px);z-index:6001"; hdr.innerHTML = '<input style="height:30px">'; document.body.appendChild(hdr);
