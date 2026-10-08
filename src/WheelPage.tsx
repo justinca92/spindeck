@@ -331,19 +331,17 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
 });
 
 /** Selected game's art, blurred background + sharp foreground. Changes only once the wheel rests. */
-const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout, legacyPos }: { game: GameEntry | undefined; flip: boolean; heroScale: number; wheelSizePct: number; layout: WheelLayout; legacyPos?: boolean }) {
+const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout, legacy }: { game: GameEntry | undefined; flip: boolean; heroScale: number; wheelSizePct: number; layout: WheelLayout; legacy?: boolean }) {
   const bottom = layout === "bottom";
-  // Side layout, "Hero art v1.3.0 position": centred on the screen's height and
-  // starting right at the art-side edge, as 1.3.0 placed it (the look is unchanged).
-  const legacy = !bottom && !!legacyPos;
-  const shiftPct = legacy ? 0 : HERO_SHIFT_PCT;
   if (!game) return null;
   const srcs = [...game.hero, ...game.capsule];
+  // Side layout, "Hero art v1.3.0 style": the art exactly as 1.3.0 drew it.
+  if (!bottom && legacy) return <HeroV130 game={game} srcs={srcs} flip={flip} heroScale={heroScale} />;
   // Pushed toward the art side (partly off-screen there) and faded out on the
   // wheel side so that it's fully clear inside the wheel's circle.
   // All in fractions of the screen width, measured from the wheel's edge.
   const w = heroScale / 100;
-  const start = 1 + shiftPct / 100 - w; // where the image begins (wheel side)
+  const start = 1 + HERO_SHIFT_PCT / 100 - w; // where the image begins (wheel side)
   const ring = wheelSizePct / 100 - 0.02; // the wheel's ring (its centre sits 2% off-screen)
   const at = (x: number) => `${Math.max(0, Math.min(100, ((x - start) / w) * 100)).toFixed(1)}%`;
   // Side: above centre, pushed away from the wheel. Bottom: across the top
@@ -363,8 +361,8 @@ const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout, l
       }
     : {
         position: "absolute",
-        top: `${legacy ? 50 : HERO_CENTER_PCT}%`,
-        [flip ? "right" : "left"]: `-${shiftPct}%`,
+        top: `${HERO_CENTER_PCT}%`,
+        [flip ? "right" : "left"]: `-${HERO_SHIFT_PCT}%`,
         width: `${heroScale}%`,
         maxHeight: "92%",
         objectFit: "contain",
@@ -431,6 +429,55 @@ const Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout, l
     </>
   );
 });
+
+/**
+ * The hero art exactly as 1.3.0 drew it (side layout, "Hero art v1.3.0 style"):
+ * vertically centred at the art-side edge, one blurred full-screen backdrop,
+ * the sharp art fading out over its last 28% toward the wheel, and a light fade
+ * along the bottom. No wheel-side vignette.
+ */
+function HeroV130({ game, srcs, flip, heroScale }: { game: GameEntry; srcs: string[]; flip: boolean; heroScale: number }) {
+  return (
+    <>
+      <FallbackImg
+        key={`bg-${game.appid}`}
+        className="dw-hero"
+        srcs={srcs}
+        style={{
+          // Blurred backdrop drawn at a quarter size and scaled up: blurring
+          // 320×200 pixels is ~16× cheaper than the full screen, and looks the same.
+          position: "absolute",
+          left: "37.5%",
+          top: "37.5%",
+          width: "25%",
+          height: "25%",
+          objectFit: "cover",
+          filter: "blur(7px) brightness(0.42) saturate(1.2)",
+          transform: "scale(4.48)",
+        }}
+      />
+      <FallbackImg
+        key={`fg-${game.appid}`}
+        className="dw-hero"
+        srcs={srcs}
+        style={{
+          // Vertically centred on the screen, anchored to the art side.
+          position: "absolute",
+          top: "50%",
+          transform: "translateY(-50%)",
+          [flip ? "right" : "left"]: 0,
+          width: `${heroScale}%`,
+          maxHeight: "92%",
+          objectFit: "contain",
+          objectPosition: flip ? "right center" : "left center",
+          WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, #000 30%, #000 70%, transparent 100%), linear-gradient(to ${flip ? "left" : "right"}, #000 72%, transparent 100%)`,
+          WebkitMaskComposite: "source-in",
+        }}
+      />
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, #000a 0%, transparent 40%)", pointerEvents: "none" }} />
+    </>
+  );
+}
 
 /** Timestamps before Steam existed (Sept 2003) are placeholders, not real plays. */
 const STEAM_EPOCH = 1_062_000_000;
@@ -1019,7 +1066,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
           .dw-hero { animation: dwFade 220ms ease-out; }
         `}</style>
 
-        <Hero game={games[heroSel]} flip={flip} heroScale={s.heroScale} wheelSizePct={s.wheelSizePct} layout={layout} legacyPos={s.heroLegacyPos} />
+        <Hero game={games[heroSel]} flip={flip} heroScale={s.heroScale} wheelSizePct={s.wheelSizePct} layout={layout} legacy={s.heroV130} />
 
         <div
           style={{

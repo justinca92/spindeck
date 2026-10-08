@@ -28,7 +28,7 @@ export interface WheelSettings {
   visibleCount: number;       // how many games fit on screen at once
   heroScale: number;          // sharp hero art width as % of screen width
   layout: "side" | "bottom";  // wheel on the screen edge, or rising from the bottom
-  heroLegacyPos: boolean;     // side layout: hero art where 1.3.0 had it (vertically centred, at the screen edge)
+  heroV130: boolean;          // side layout: hero art exactly as 1.3.0 drew it (position, backdrop, fades)
   soundEnabled: boolean;
   hapticEnabled: boolean;
   hapticLevel: number; // 1–9 (5 = Steam's radial-menu strength); default 7     // tick on the rotating trackpad, like Steam's radial menu
@@ -61,7 +61,7 @@ export const DEFAULTS: WheelSettings = {
   visibleCount: 11,
   heroScale: 95,
   layout: "side",
-  heroLegacyPos: false,
+  heroV130: false,
   soundEnabled: true,
   hapticEnabled: true,
   hapticLevel: 7,

@@ -50,7 +50,7 @@ var DEFAULTS = {
   visibleCount: 11,
   heroScale: 95,
   layout: "side",
-  heroLegacyPos: false,
+  heroV130: false,
   soundEnabled: true,
   hapticEnabled: true,
   hapticLevel: 7,
@@ -250,8 +250,8 @@ var ko = {
   layoutSide: "옆 (화면 가장자리)",
   layoutBottom: "아래 (아래쪽 모서리)",
   pctOfWidth: "화면 너비 대비 %",
-  heroLegacyPos: "히어로 이미지 v1.3.0 위치",
-  heroLegacyPosDesc: "1.3.0처럼 화면 세로 가운데, 가장자리에 붙여서 보여 줘요.",
+  heroV130: "히어로 이미지 v1.3.0 스타일",
+  heroV130Desc: "위치, 배경 흐림, 그라데이션까지 1.3.0 모습 그대로 보여 줘요.",
   visible: "한 화면에 보이는 게임 수",
   wheelSize: "휠 크기",
   capsuleSize: "캡슐 이미지 크기",
@@ -334,8 +334,8 @@ var en = {
   layoutSide: "Side (screen edge)",
   layoutBottom: "Bottom (lower corner)",
   pctOfWidth: "% of screen width",
-  heroLegacyPos: "Hero art v1.3.0 position",
-  heroLegacyPosDesc: "Centred vertically at the screen edge, as in 1.3.0.",
+  heroV130: "Hero art v1.3.0 style",
+  heroV130Desc: "Position, blurred backdrop and fades exactly as in 1.3.0.",
   visible: "Games visible at once",
   wheelSize: "Wheel size",
   capsuleSize: "Capsule art size",
@@ -1722,15 +1722,20 @@ var WheelRing = memo(function WheelRing(p) {
     style: { position: "absolute", inset: 0 }
   }, items);
 });
-var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout, legacyPos }) {
+var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout, legacy }) {
   const bottom = layout === "bottom";
-  const legacy = !bottom && !!legacyPos;
-  const shiftPct = legacy ? 0 : HERO_SHIFT_PCT;
   if (!game)
     return null;
   const srcs = [...game.hero, ...game.capsule];
+  if (!bottom && legacy)
+    return /* @__PURE__ */ window.SP_REACT.createElement(HeroV130, {
+      game,
+      srcs,
+      flip,
+      heroScale
+    });
   const w = heroScale / 100;
-  const start = 1 + shiftPct / 100 - w;
+  const start = 1 + HERO_SHIFT_PCT / 100 - w;
   const ring = wheelSizePct / 100 - 0.02;
   const at = (x) => `${Math.max(0, Math.min(100, (x - start) / w * 100)).toFixed(1)}%`;
   const lift = bottom ? "" : "translateY(-50%)";
@@ -1744,8 +1749,8 @@ var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout, leg
     objectPosition: "center top"
   } : {
     position: "absolute",
-    top: `${legacy ? 50 : HERO_CENTER_PCT}%`,
-    [flip ? "right" : "left"]: `-${shiftPct}%`,
+    top: `${HERO_CENTER_PCT}%`,
+    [flip ? "right" : "left"]: `-${HERO_SHIFT_PCT}%`,
     width: `${heroScale}%`,
     maxHeight: "92%",
     objectFit: "contain",
@@ -1785,6 +1790,41 @@ var Hero = memo(function Hero({ game, flip, heroScale, wheelSizePct, layout, leg
     style: { position: "absolute", inset: 0, background: HERO_BOTTOM_VIGNETTE, pointerEvents: "none" }
   }));
 });
+function HeroV130({ game, srcs, flip, heroScale }) {
+  return /* @__PURE__ */ window.SP_REACT.createElement(window.SP_REACT.Fragment, null, /* @__PURE__ */ window.SP_REACT.createElement(FallbackImg, {
+    key: `bg-${game.appid}`,
+    className: "dw-hero",
+    srcs,
+    style: {
+      position: "absolute",
+      left: "37.5%",
+      top: "37.5%",
+      width: "25%",
+      height: "25%",
+      objectFit: "cover",
+      filter: "blur(7px) brightness(0.42) saturate(1.2)",
+      transform: "scale(4.48)"
+    }
+  }), /* @__PURE__ */ window.SP_REACT.createElement(FallbackImg, {
+    key: `fg-${game.appid}`,
+    className: "dw-hero",
+    srcs,
+    style: {
+      position: "absolute",
+      top: "50%",
+      transform: "translateY(-50%)",
+      [flip ? "right" : "left"]: 0,
+      width: `${heroScale}%`,
+      maxHeight: "92%",
+      objectFit: "contain",
+      objectPosition: flip ? "right center" : "left center",
+      WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, #000 30%, #000 70%, transparent 100%), linear-gradient(to ${flip ? "left" : "right"}, #000 72%, transparent 100%)`,
+      WebkitMaskComposite: "source-in"
+    }
+  }), /* @__PURE__ */ window.SP_REACT.createElement("div", {
+    style: { position: "absolute", inset: 0, background: "linear-gradient(to top, #000a 0%, transparent 40%)", pointerEvents: "none" }
+  }));
+}
 var STEAM_EPOCH = 1062000000;
 function daysSince(rt) {
   const d = new Date(rt * 1000);
@@ -2280,7 +2320,7 @@ function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = tr
     heroScale: s.heroScale,
     wheelSizePct: s.wheelSizePct,
     layout,
-    legacyPos: s.heroLegacyPos
+    legacy: s.heroV130
   }), /* @__PURE__ */ window.SP_REACT.createElement("div", {
     style: {
       position: "absolute",
@@ -3526,10 +3566,10 @@ function QuickAccessPanel() {
     selectedOption: s.layout === "bottom" ? "bottom" : "side",
     onChange: (o) => updateSettings({ layout: o.data })
   })), s.layout !== "bottom" && /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(ToggleField, {
-    label: t.heroLegacyPos,
-    description: t.heroLegacyPosDesc,
-    checked: s.heroLegacyPos,
-    onChange: (v) => updateSettings({ heroLegacyPos: v })
+    label: t.heroV130,
+    description: t.heroV130Desc,
+    checked: s.heroV130,
+    onChange: (v) => updateSettings({ heroV130: v })
   })), /* @__PURE__ */ window.SP_REACT.createElement(PanelSectionRow, null, /* @__PURE__ */ window.SP_REACT.createElement(SliderField, {
     label: t.heroSize,
     description: t.pctOfWidth,

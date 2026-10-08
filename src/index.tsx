@@ -277,10 +277,10 @@ function QuickAccessPanel() {
         {s.layout !== "bottom" && (
           <PanelSectionRow>
             <ToggleField
-              label={t.heroLegacyPos}
-              description={t.heroLegacyPosDesc}
-              checked={s.heroLegacyPos}
-              onChange={(v) => updateSettings({ heroLegacyPos: v })}
+              label={t.heroV130}
+              description={t.heroV130Desc}
+              checked={s.heroV130}
+              onChange={(v) => updateSettings({ heroV130: v })}
             />
           </PanelSectionRow>
         )}
