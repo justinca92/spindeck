@@ -28,7 +28,7 @@ jobs:
       - name: Release notes for this version
         run: |
           v=$(node -p "require('./package.json').version")
-          awk -v ver="$v" '$0 ~ "^## "ver" " {on=1; next} /^## / && on {exit} on' RELEASE_NOTES.md > notes.md
+          awk -v ver="$v" '$0 == "## "ver {on=1; next} /^## / && on {exit} on' RELEASE_NOTES.md > notes.md
           [ -s notes.md ] || echo "Spindeck $v" > notes.md
 
       - uses: softprops/action-gh-release@v2
