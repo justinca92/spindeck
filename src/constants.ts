@@ -20,6 +20,8 @@ export const ARRIVAL_IGNORE_MS = 700;
 export const CIRCLE_START_DELAY_MS = 500;
 /** …and after Quick Access / the Steam menu closes (window refocus). */
 export const WINDOW_REFOCUS_DELAY_MS = 800;
+/** Re-read the library on window focus at most this often (a big library takes a moment to read). */
+export const LIBRARY_REFRESH_MS = 10_000;
 /** No wheel haptics this long after Ⓑ (a stray pad step could tick). */
 export const HAPTIC_MUTE_AFTER_B_MS = 500;
 
@@ -38,7 +40,8 @@ export const FRAME_FALLBACK_MS = 40;
 export const SCROLL_SETTLE_MS = 140;
 /** Header bar re-apply interval while home is shown, and full re-scan interval. */
 export const HEADER_REAPPLY_MS = 1000;
-export const HEADER_RESCAN_MS = 5000;
+/** Full page re-scan for Steam's top bar (also done at once when a known bar element leaves the page). */
+export const HEADER_RESCAN_MS = 15_000;
 
 /** Roulette: minimum steps, start/extra delay per step, ease exponent, result display. */
 export const ROULETTE_MIN_STEPS = 22;

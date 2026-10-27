@@ -1,5 +1,6 @@
 // Public links shown in the panel's "About" section.
-// Empty = that button is hidden (fill these in before publishing a release).
 export const KOFI_URL = "https://ko-fi.com/jhw0806";
 export const REPO_URL = "https://github.com/justinca92/spindeck";
-export const PLUGIN_VERSION = "1.4.1";
+declare const __PLUGIN_VERSION__: string;
+/** From package.json, set at build time (build/build.ts): the only place the version is written. */
+export const PLUGIN_VERSION = __PLUGIN_VERSION__;

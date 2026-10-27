@@ -15,15 +15,17 @@ import { debug } from "./log";
 // Location values differ by mode (both tested one by one on device):
 //   normal mode:        1 = right, 2 = left
 //   keyboard action set: 0 = left, 1 = right, 2 = both
-export const HAPTIC_LOCATION = { left: 2, right: 1 } as const;
-export const HAPTIC_LOCATION_KEYBOARD = { left: 0, right: 1 } as const;
+const HAPTIC_LOCATION = { left: 2, right: 1 } as const;
+const HAPTIC_LOCATION_KEYBOARD = { left: 0, right: 1 } as const;
 
-let service: any | null | undefined;
+let service: any | null = null;
 let broken = false;
+let retryAt = 0;
+/** Not found yet (Steam may not have loaded the module): look again after this long, not on every tick. */
+const SEARCH_RETRY_MS = 5000;
 
 function findService(): any | null {
-  if (service !== undefined) return service;
-  service = null;
+  if (service || Date.now() < retryAt) return service;
   try {
     const mod = findModuleExports("PlaySteamDeckHaptic", "Playing legacy haptics");
     for (const v of Object.values(mod ?? {})) {
@@ -33,7 +35,8 @@ function findService(): any | null {
   } catch (e) {
     debug("haptic", "search failed", e);
   }
-  return service;
+  retryAt = Date.now() + SEARCH_RETRY_MS;
+  return null;
 }
 
 /** Strength level 1–9 → dB gain: 1 = -24 dB … 5 = -12 dB (Steam's radial menu) … 9 = 0 dB. */

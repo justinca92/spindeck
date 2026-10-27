@@ -7,31 +7,75 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  # Runs the build tools, so it gets a read-only token; only the publish job
+  # below can write the release.
+  build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
 
       - name: Check version matches tag
         run: |
           v=$(node -p "require('./package.json').version")
           [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "package.json is $v but tag is ${GITHUB_REF_NAME}"; exit 1; }
 
+      - name: Typecheck and backend tests
+        run: |
+          npx -p typescript@$(node -p "require('./package.json').devDependencies.typescript") tsc -p typecheck/tsconfig.json
+          python3 tests/py/t.py
+
       - name: Build and package
         run: ./scripts/package.sh
+
+      - name: Verify release package
+        run: |
+          v=$(node -p "require('./package.json').version")
+          zip="release/spindeck-$v.zip"
+          for f in spindeck/main.py spindeck/plugin.json spindeck/package.json spindeck/dist/index.js; do
+            unzip -Z1 "$zip" | grep -Fx "$f" || { echo "$f missing from $zip"; exit 1; }
+          done
+          # The build injects the version (build/build.ts): the updater compares against it.
+          unzip -p "$zip" spindeck/dist/index.js | grep -Fq "\"$v\"" || { echo "dist/index.js doesn't carry version $v"; exit 1; }
+          sha256sum "$zip"
 
       - name: Release notes for this version
         run: |
           v=$(node -p "require('./package.json').version")
-          awk -v ver="$v" '$0 == "## "ver {on=1; next} /^## / && on {exit} on' RELEASE_NOTES.md > notes.md
-          [ -s notes.md ] || echo "Spindeck $v" > notes.md
+          awk -v ver="$v" '$0 == "## "ver {on=1; next} /^## / && on {exit} on' RELEASE_NOTES.md > release/notes.md
+          [ -s release/notes.md ] || echo "Spindeck $v" > release/notes.md
+          # The install link names the repository publishing it (the same on upstream; a fork's own release on a fork).
+          sed -i "s#github.com/justinca92/spindeck/releases/download/#github.com/${GITHUB_REPOSITORY}/releases/download/#g" release/notes.md
 
-      - uses: softprops/action-gh-release@v2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          files: release/spindeck-*.zip
-          body_path: notes.md
+          name: release
+          path: |
+            release/spindeck-*.zip
+            release/notes.md
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+
+      # GitHub's own CLI (preinstalled on the runner): no third-party code runs with the write token.
+      # A tag like v1.5.0-rc.1 is a pre-release: GitHub never reports it as "latest",
+      # so the in-panel updater (releases/latest) keeps offering stable versions only.
+      - name: Create GitHub Release
+        run: |
+          prerelease=()
+          [[ "$GITHUB_REF_NAME" == *-* ]] && prerelease=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" spindeck-*.zip --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes.md "${prerelease[@]}"
+        env:
+          GH_TOKEN: ${{ github.token }}

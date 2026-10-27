@@ -2,7 +2,7 @@ import { Focusable, GamepadButton, GamepadEvent, Navigation } from "@decky/ui";
 import { CSSProperties, memo, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "./i18n";
 import { debug } from "./log";
-import { AppExtra, cachedAchievements, GameEntry, listCollections, loadCollectionGames, loadGames, openGamePage, overviewMinutes, subscribeAppExtra } from "./games";
+import { AppExtra, cachedAchievements, GameEntry, launch, listCollections, loadCollectionGames, loadGames, openGamePage, overviewMinutes, subscribeAppExtra } from "./games";
 import { subscribeCursorWheel, subscribeKeyboardAnalogWheel, subscribeScrollWheel } from "./padInput";
 import { getSettings, settingsLoaded, updateSettings, useSettings } from "./settings";
 import { crossedMilestone } from "./odometer";
@@ -13,6 +13,7 @@ import { openNativeGameMenu } from "./nativeMenu";
 import { rumbleBoth, wheelTick } from "./haptics";
 import { findHeaderSearch } from "./steamDom";
 import { InfoRow } from "./InfoRow";
+import { indexLetter } from "./hangul";
 import { friendsInGame } from "./friends";
 import {
   DETAILS_DELAY_MS,
@@ -43,6 +44,7 @@ import {
   FRAME_FALLBACK_MS,
   INPUT_SETTLE_MS,
   WINDOW_REFOCUS_DELAY_MS,
+  LIBRARY_REFRESH_MS,
   HERO_CENTER_PCT,
   HERO_BOTTOM_VIGNETTE,
   HERO_SHIFT_PCT,
@@ -74,12 +76,14 @@ const NAMES_EACH_SIDE = 3; // game names shown for the selection ± this many
 
 /** <img> that walks through candidate URLs until one loads. */
 function FallbackImg({ srcs, style, className }: { srcs: string[]; style?: CSSProperties; className?: string }) {
-  const [i, setI] = useState(0);
+  // The failed-candidate count belongs to one list: a new list starts at its first
+  // URL in the same render (an effect reset would first try the old position in it).
   const key = srcs.join("|");
-  useEffect(() => setI(0), [key]);
+  const [failed, setFailed] = useState({ key, n: 0 });
+  const i = failed.key === key ? failed.n : 0;
   if (i >= srcs.length) return <div className={className} style={{ ...style, background: "#1b2838" }} />;
   // decoding="async": decode off the main thread so a new capsule doesn't stall a frame.
-  return <img className={className} style={style} src={srcs[i]} decoding="async" onError={() => setI(i + 1)} />;
+  return <img className={className} style={style} src={srcs[i]} decoding="async" onError={() => setFailed({ key, n: i + 1 })} />;
 }
 
 /** Warm the browser cache for capsules about to come into view. */
@@ -198,12 +202,16 @@ interface RingProps {
   accentColor: string;
 }
 
-/** The capsule ring — the only part that re-renders every animation frame. */
+/**
+ * The capsule ring. React renders it only when the set of games on it changes
+ * (a new selection, or the motion passing a whole game); every animation frame
+ * in between moves the capsules directly (place()), so a fast spin doesn't
+ * re-render ~13 capsules 60 times a second.
+ */
 const WheelRing = memo(function WheelRing(p: RingProps) {
   const { games, sel, motion, W, H, flip } = p;
   const n = games.length;
-  const [vis, setVis] = useState(motion.pos);
-  useEffect(() => motion.subscribe(setVis), [motion]);
+  const [, rerender] = useState(0);
 
   const bottom = p.layout === "bottom";
   const { cx, cy, R } = wheelGeom(p.layout, flip, W, H, p.wheelSizePct);
@@ -226,18 +234,10 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
       preload(games[(sel + off) % n]?.capsule[0]);
       preload(games[(((sel - off) % n) + n) % n]?.capsule[0]);
     }
-  }, [sel, n]);
+  }, [sel, games]);
 
-  if (!n) return null;
-  // Integer part picks the games, fraction slides them.
-  const vRel = vis - motion.target; // ≤ 0 while catching up forward
-  const base = Math.round(vRel);
-  const frac = vRel - base;
-  const items = [];
-  for (let off = -span; off <= span; off++) {
-    const idx = (((sel + base + off) % n) + n) % n;
-    const g = games[idx];
-    const rel = off - frac; // continuous distance from the pointer
+  /** Where a capsule `rel` games from the pointer sits, and how it looks there. */
+  const frameAt = (rel: number) => {
     // Next games sit clockwise from the selection.
     // Side, right wheel: π = pointing left at the art. Left wheel: 0 = pointing right.
     // Bottom: π/2 = straight up; a little extra room on each side of the selection.
@@ -246,26 +246,65 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
     const x = cx + R * Math.cos(theta);
     const y = cy - R * Math.sin(theta);
     const dist = Math.abs(rel);
-    const selected = idx === sel;
     const scale = dist < 1 ? 1 - 0.23 * dist : Math.max(0.55, 0.82 - dist * 0.05);
+    // Anchor the capsule's centre on the arc; the title extends away from the art.
+    // Bottom: centred on the arc, leaning along it; no side titles (the
+    // selected game's name sits above it, drawn by the page).
+    const transform = bottom
+      ? `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${((phi * 180) / Math.PI).toFixed(2)}deg) scale(${scale})`
+      : flip
+        ? `translate(${x}px, ${y}px) translate(calc(-100% + ${capW / 2}px), -50%) scale(${scale})`
+        : `translate(${x}px, ${y}px) translate(${-capW / 2}px, -50%) scale(${scale})`;
     // Capsules stay opaque so overlaps read as a stack; distance darkens instead.
     const shade = dist < 1 ? 1 - 0.32 * dist : Math.max(0.35, 0.8 - dist * 0.12);
     const nameFade = Math.max(0, Math.min(1, (NAMES_EACH_SIDE + 0.6 - dist) / 0.6));
+    return { transform, zIndex: 100 - Math.round(dist * 10), shade, nameFade };
+  };
+
+  // Integer part picks the games (fixed for this render), fraction slides them.
+  const vRel = motion.pos - motion.target; // ≤ 0 while catching up forward
+  const base = Math.round(vRel);
+  type Slot = { item: HTMLDivElement | null; shade: HTMLDivElement | null; name: HTMLDivElement | null; selected: boolean };
+  const nodes = useRef<Slot[]>([]);
+  nodes.current.length = 2 * span + 1;
+  const place = (vis: number) => {
+    const v = vis - motion.target;
+    if (Math.round(v) !== base) return rerender((r) => r + 1); // another game reached the pointer
+    const frac = v - base;
+    for (let k = 0; k < nodes.current.length; k++) {
+      const el = nodes.current[k];
+      if (!el?.item) continue;
+      const f = frameAt(k - span - frac);
+      el.item.style.transform = f.transform;
+      el.item.style.zIndex = String(f.zIndex);
+      if (el.shade) el.shade.style.opacity = String(el.selected ? 0 : 1 - f.shade);
+      if (el.name) el.name.style.opacity = String((el.selected ? 1 : Math.max(0.35, f.shade)) * f.nameFade);
+    }
+  };
+  const placeRef = useRef(place);
+  placeRef.current = place;
+  useEffect(() => motion.subscribe((vis) => placeRef.current(vis)), [motion]);
+
+  if (!n) return null;
+  const frac = vRel - base;
+  const items = [];
+  for (let off = -span; off <= span; off++) {
+    const k = off + span;
+    const idx = (((sel + base + off) % n) + n) % n;
+    const g = games[idx];
+    const selected = idx === sel;
+    const f = frameAt(off - frac);
+    const slot: Slot = (nodes.current[k] ??= { item: null, shade: null, name: null, selected });
+    slot.selected = selected;
     items.push(
       <div
         key={g.appid}
+        ref={(el: HTMLDivElement | null) => void (slot.item = el)}
         style={{
           position: "absolute",
           left: 0,
           top: 0,
-          // Anchor the capsule's centre on the arc; the title extends away from the art.
-          // Bottom: centred on the arc, leaning along it; no side titles (the
-          // selected game's name sits above it, drawn by the page).
-          transform: bottom
-            ? `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${((phi * 180) / Math.PI).toFixed(2)}deg) scale(${scale})`
-            : flip
-              ? `translate(${x}px, ${y}px) translate(calc(-100% + ${capW / 2}px), -50%) scale(${scale})`
-              : `translate(${x}px, ${y}px) translate(${-capW / 2}px, -50%) scale(${scale})`,
+          transform: f.transform,
           transformOrigin: bottom ? "center" : flip ? "right center" : "left center",
           flexDirection: flip ? "row-reverse" : "row",
           display: "flex",
@@ -273,7 +312,7 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
           // Title ↔ capsule spacing: a bit more for the games around the selection
           // (they're scaled down, which also shrinks the gap).
           gap: selected ? 16 : 28,
-          zIndex: 100 - Math.round(dist * 10),
+          zIndex: f.zIndex,
           pointerEvents: "none",
           // Own compositor layer: per-frame moves are then just a transform.
           willChange: "transform",
@@ -295,12 +334,13 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
               brightness() — a filter repaints the image every frame, opacity
               is a cheap compositor change. */}
           <div
+            ref={(el: HTMLDivElement | null) => void (slot.shade = el)}
             style={{
               position: "absolute",
               inset: 0,
               borderRadius: 8,
               background: "#000",
-              opacity: selected ? 0 : 1 - shade,
+              opacity: selected ? 0 : 1 - f.shade,
               willChange: "opacity",
             }}
           />
@@ -308,12 +348,13 @@ const WheelRing = memo(function WheelRing(p: RingProps) {
         {/* Always rendered (opacity only) — mounting/unmounting names at the
             edge while spinning cost extra layout. */}
           {!bottom && <div
+            ref={(el: HTMLDivElement | null) => void (slot.name = el)}
             style={{
               maxWidth: Math.max(200, 300 * p.textScale),
               fontSize: (selected ? BASE_TITLE_PX : BASE_TITLE_PX_SIDE) * p.textScale,
               fontWeight: selected ? 700 : 500,
               color: "#fff",
-              opacity: (selected ? 1 : Math.max(0.35, shade)) * nameFade,
+              opacity: (selected ? 1 : Math.max(0.35, f.shade)) * f.nameFade,
               textShadow: "0 2px 6px #000",
               // Long names wrap to two lines, then end with an ellipsis.
               display: "-webkit-box",
@@ -537,6 +578,10 @@ interface WheelPageProps {
 export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, active = true }: WheelPageProps) {
   const s = useSettings();
   const t = useT();
+  // Bumped when Steam's window gets focus back (a game closed, an install or the
+  // Quick Access panel finished), so installs / uninstalls / new plays and
+  // renamed collections show up.
+  const [libraryRev, setLibraryRev] = useState(0);
   // Three slots in a row: [L1 pick] — base view — [R1 pick], each with its own sort.
   // L1/R1 move one step left/right (no wrap-around).
   const views = useMemo<WheelView[]>(() => {
@@ -553,7 +598,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
     // The main view can't be empty: a deleted collection falls back to installed games.
     const base = make(s.baseView, "base", s.sortMode) ?? make("base:installed", "base", s.sortMode)!;
     return [make(s.l1View, "l1", s.l1Sort), base, make(s.r1View, "r1", s.r1Sort)].filter((v): v is WheelView => !!v);
-  }, [s.baseView, s.sortMode, s.l1View, s.l1Sort, s.r1View, s.r1Sort, t]);
+  }, [s.baseView, s.sortMode, s.l1View, s.l1Sort, s.r1View, s.r1Sort, t, libraryRev]);
   const baseKey = views.find((v) => v.key.startsWith("base:"))!.key;
   const [viewKey, setViewKey] = useState<string>(() => lastViewKey ?? baseKey);
   const view = views.find((v) => v.key === viewKey) ?? views.find((v) => v.key === baseKey) ?? views[0];
@@ -562,7 +607,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   }, [view.key]);
   const games = useMemo<GameEntry[]>(
     () => (view.collection ? loadCollectionGames(view.collection, view.sort) : loadGames(view.installedOnly, view.sort)),
-    [view.key, view.sort],
+    [view.key, view.sort, libraryRev],
   );
   const n = games.length;
   const restoreSel = (list: GameEntry[]) => {
@@ -802,6 +847,26 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   // only runs while our window and the wheel itself are focused. Re-enable only
   // once focus has been stable: switching the action set right as the Steam menu
   // closes made Steam reopen the menu.
+  // Rebuilding the list reads every game from Steam's stores: only while the wheel
+  // is showing and not mid-roulette (a new list would jump the selection under the
+  // spin), at most every LIBRARY_REFRESH_MS. A refresh asked for meanwhile waits
+  // until the wheel is shown again.
+  const lastRefresh = useRef(Date.now());
+  const refreshPending = useRef(false);
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const refreshLibrary = () => {
+    if (!activeRef.current || spinningRef.current || Date.now() - lastRefresh.current < LIBRARY_REFRESH_MS) {
+      refreshPending.current = true;
+      return;
+    }
+    refreshPending.current = false;
+    lastRefresh.current = Date.now();
+    setLibraryRev((r) => r + 1);
+  };
+  useEffect(() => {
+    if (active && refreshPending.current) refreshLibrary();
+  }, [active]);
   const [winFocused, setWinFocused] = useState(true);
   useEffect(() => {
     const view: any = rootRef.current?.ownerDocument?.defaultView;
@@ -809,7 +874,10 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
     let tm: any;
     const on = () => {
       clearTimeout(tm);
-      tm = setTimeout(() => setWinFocused(true), WINDOW_REFOCUS_DELAY_MS);
+      tm = setTimeout(() => {
+        setWinFocused(true);
+        refreshLibrary();
+      }, WINDOW_REFOCUS_DELAY_MS);
     };
     const off = () => {
       clearTimeout(tm);
@@ -1020,8 +1088,19 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
       onPadButton(e);
     },
     up: onPadButton,
-    // Ⓐ opens Steam's own game page.
+    // Ⓐ launches the game, Ⓧ ("Secondary") opens Steam's own game page.
+    // Panel toggle off: Ⓐ opens the game page and Ⓧ is left alone.
     ok: () => {
+      if (!s.aLaunches) return latest.current.secondary(undefined);
+      // Mid-roulette / mid-swap the selection is still moving: never launch a game in flight.
+      if (!current || spinningRef.current || fxBusy.current) return;
+      // Not installed: the game page has Steam's Install button.
+      if (!current.installed) return latest.current.secondary(undefined);
+      if (s.soundEnabled) playUiSound("launch");
+      launch(current);
+    },
+    secondary: (e?: any) => {
+      if (e) consume(e);
       if (!current) return;
       if (s.soundEnabled) playUiSound("detail");
       openGamePage(current);
@@ -1039,7 +1118,7 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
   };
   const call = useMemo(() => {
     const f = (name: string) => (e: any) => latest.current[name]?.(e);
-    return { dir: f("dir"), down: f("down"), up: f("up"), ok: f("ok"), options: f("options"), menu: f("menu") };
+    return { dir: f("dir"), down: f("down"), up: f("up"), ok: f("ok"), secondary: f("secondary"), options: f("options"), menu: f("menu") };
   }, []);
 
   const roulettePill = <RoulettePill state={roulette} accent={s.accentColor} label={roulette === "spinning" ? t.rouletteSpinning : roulette === "done" && current ? t.rouletteDone(current.name) : t.roulette} />;
@@ -1052,7 +1131,9 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
       onButtonDown={call.down}
       onButtonUp={call.up}
       onOKButton={call.ok}
-      onOKActionDescription={t.gamePage}
+      onOKActionDescription={s.aLaunches ? t.play : t.gamePage}
+      onSecondaryButton={s.aLaunches ? call.secondary : undefined}
+      onSecondaryActionDescription={s.aLaunches ? t.gamePage : undefined}
       onOptionsButton={call.options}
       onOptionsActionDescription={t.roulette}
       onMenuButton={call.menu}
@@ -1239,17 +1320,6 @@ export function WheelPage({ mode = "page", onWheelFocus, onRequestSections, acti
       </div>
     </Focusable>
   );
-}
-
-/** Index letter of a title: A–Z, a Hangul initial consonant (ㄱ…ㅎ), "#" for digits/symbols. */
-const CHOSEONG = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
-export function indexLetter(name: string): string {
-  const ch = (name.trim()[0] ?? "#").toUpperCase();
-  const code = ch.charCodeAt(0);
-  if (code >= 0xac00 && code <= 0xd7a3) return CHOSEONG[Math.floor((code - 0xac00) / 588)];
-  if (/[A-Z]/.test(ch) || /[\u3131-\u314e]/.test(ch)) return ch;
-  if (/\p{L}/u.test(ch)) return ch;
-  return "#";
 }
 
 /**

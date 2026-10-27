@@ -11,11 +11,12 @@ import { createElement } from "react";
 import { debug } from "./log";
 import { findModuleExports } from "./webpack";
 
-let cached: { Menu: any; options: any } | null | undefined;
+// Only a hit is cached: not found is looked up again on the next ≡ press (Steam
+// may not have loaded the menu's module yet).
+let cached: { Menu: any; options: any } | null = null;
 
 function findAppMenu() {
-  if (cached !== undefined) return cached;
-  cached = null;
+  if (cached) return cached;
   try {
     const mod = findModuleExports("ContextMenuAction", "launchSource", "LibraryContextMenu");
     let Menu: any, options: any;

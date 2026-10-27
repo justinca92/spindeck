@@ -16,15 +16,16 @@ import { listCollections } from "./games";
 import { requestWheelReset } from "./reset";
 import { composeHangul } from "./hangul";
 import { openHangulPad } from "./HangulPad";
-import { useLang, detected, LangSetting } from "./locale";
+import { useLang, detected, LangSetting, LANGS } from "./locale";
 import { useT, Strings } from "./i18n";
 import { HOME_ROUTE, installHomePatch, removeHomePatch } from "./homePatch";
 import { KOFI_URL, PLUGIN_VERSION, REPO_URL } from "./links";
 import { levelToDb, wheelTick } from "./haptics";
 import { SafeBoundary, teardownAll } from "./safety";
 import { sweepLeftovers } from "./steamDom";
-import { checkNow, startUpdate, useUpdateCheck } from "./updater";
-import { useEffect, useRef, useState } from "react";
+import { checkNow, resetUpdateCheck, startUpdate, UpdateChannel, useUpdateCheck } from "./updater";
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { IconLabel, Icons } from "./icons";
 import {
   PadSide,
   SortMode,
@@ -35,14 +36,8 @@ import {
   useSettingsLoaded,
 } from "./settings";
 
-export const ROUTE = "/spindeck";
+const ROUTE = "/spindeck";
 
-const WheelIcon = () => (
-  <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-    <circle cx="12" cy="12" r="9" />
-    <circle cx="12" cy="12" r="3" />
-  </svg>
-);
 // Steam Deck home route. Verify on your client version if the wheel never shows.
 
 /**
@@ -52,15 +47,19 @@ const WheelIcon = () => (
  * this window), so there is a separate Hangul keypad; loose jamo, if any
  * arrive, are composed.
  */
-function DeferredTextField({ label, initial, onCommit }: { label: string; initial: string; onCommit: (v: string) => void }) {
+function DeferredTextField({ label, initial, onCommit }: { label: ReactNode; initial: string; onCommit: (v: string) => void }) {
   const [text, setText] = useState(initial);
   const latest = useRef(initial);
   const timer = useRef<any>(null);
-  useEffect(() => () => clearTimeout(timer.current), []);
   const commit = () => {
     clearTimeout(timer.current);
+    timer.current = null;
     onCommit(latest.current);
   };
+  // Panel closed mid-pause (no blur): save what was typed instead of dropping it.
+  const commitRef = useRef(commit);
+  commitRef.current = commit;
+  useEffect(() => () => void (timer.current && commitRef.current()), []);
   return (
     <TextField
       label={label}
@@ -165,11 +164,14 @@ function QuickAccessPanel() {
   const [padRev, setPadRev] = useState(0); // …and after the Hangul keypad edits them
   const t = useT();
   const korean = useLang() === "ko"; // Hangul keypad buttons only for a Korean Steam UI
+  // Grouped by what you're changing, most-used first. Options that only matter
+  // because of another one sit indented right under it.
   return (
     <>
       <PanelSection>
         <PanelSectionRow>
           <ToggleField
+            icon={<Icons.wheel />}
             label={t.homeToggle}
             description={t.homeToggleDesc}
             checked={s.homeEnabled}
@@ -184,27 +186,14 @@ function QuickAccessPanel() {
               Navigation.Navigate(s.homeEnabled ? HOME_ROUTE : ROUTE);
             }}
           >
-            {t.openWheel}
+            <IconLabel icon={Icons.open}>{t.openWheel}</IconLabel>
           </ButtonItem>
         </PanelSectionRow>
       </PanelSection>
 
       <PanelSection title={t.personalize}>
         <PanelSectionRow>
-          <DropdownItem
-            label="언어 / Language"
-            description={`${t.langAuto}: ${detected.raw} (${detected.source})`}
-            rgOptions={[
-              { data: "auto", label: t.langAuto },
-              { data: "ko", label: "한국어" },
-              { data: "en", label: "English" },
-            ]}
-            selectedOption={s.language ?? "auto"}
-            onChange={(o) => updateSettings({ language: o.data as LangSetting })}
-          />
-        </PanelSectionRow>
-        <PanelSectionRow>
-          <DeferredTextField key={`${loaded}-${padRev}`} label={t.ownerLabel} initial={s.ownerText} onCommit={(v) => updateSettings({ ownerText: v })} />
+          <DeferredTextField key={`${loaded}-${padRev}`} label={<IconLabel icon={Icons.text}>{t.ownerLabel}</IconLabel>} initial={s.ownerText} onCommit={(v) => updateSettings({ ownerText: v })} />
         </PanelSectionRow>
         {korean && (
           <PanelSectionRow>
@@ -213,12 +202,12 @@ function QuickAccessPanel() {
               description={t.hangulDesc}
               onClick={() => openHangulPad(t.ownerLabel, s.ownerText, (v) => { updateSettings({ ownerText: v }); setPadRev((r) => r + 1); })}
             >
-              {t.hangulFor(t.ownerLabel)}
+              <IconLabel icon={Icons.hangul}>{t.hangulFor(t.ownerLabel)}</IconLabel>
             </ButtonItem>
           </PanelSectionRow>
         )}
         <PanelSectionRow>
-          <DeferredTextField key={`${loaded}-${padRev}`} label={t.subLabel} initial={s.subtitleText} onCommit={(v) => updateSettings({ subtitleText: v })} />
+          <DeferredTextField key={`${loaded}-${padRev}`} label={<IconLabel icon={Icons.subtitle}>{t.subLabel}</IconLabel>} initial={s.subtitleText} onCommit={(v) => updateSettings({ subtitleText: v })} />
         </PanelSectionRow>
         {korean && (
           <PanelSectionRow>
@@ -226,7 +215,7 @@ function QuickAccessPanel() {
               layout="below"
               onClick={() => openHangulPad(t.subTitle, s.subtitleText, (v) => { updateSettings({ subtitleText: v }); setPadRev((r) => r + 1); })}
             >
-              {t.hangulFor(t.subTitle)}
+              <IconLabel icon={Icons.hangul}>{t.hangulFor(t.subTitle)}</IconLabel>
             </ButtonItem>
           </PanelSectionRow>
         )}
@@ -236,6 +225,7 @@ function QuickAccessPanel() {
       <PanelSection title={t.library}>
         <PanelSectionRow>
           <DropdownItem
+            icon={<Icons.library />}
             label={t.view}
             bottomSeparator="none"
             rgOptions={viewOptions(t, false)}
@@ -245,6 +235,7 @@ function QuickAccessPanel() {
         </PanelSectionRow>
         <PanelSectionRow>
           <DropdownItem
+            icon={<Icons.sort />}
             label={t.sort}
             indentLevel={1}
             rgOptions={[
@@ -262,6 +253,7 @@ function QuickAccessPanel() {
       <PanelSection title={t.display}>
         <PanelSectionRow>
           <DropdownItem
+            icon={<Icons.layout />}
             label={t.layout}
             description={t.layoutDesc}
             rgOptions={[
@@ -272,53 +264,15 @@ function QuickAccessPanel() {
             onChange={(o) => updateSettings({ layout: o.data as "side" | "bottom" })}
           />
         </PanelSectionRow>
-        {s.layout !== "bottom" && (
-          <PanelSectionRow>
-            <ToggleField
-              label={t.heroV130}
-              description={t.heroV130Desc}
-              checked={s.heroV130}
-              onChange={(v) => updateSettings({ heroV130: v })}
-            />
-          </PanelSectionRow>
-        )}
         <PanelSectionRow>
-          <SliderField
-            label={t.heroSize}
-            description={t.pctOfWidth}
-            min={40}
-            max={150}
-            step={5}
-            value={s.heroScale}
-            showValue
-            onChange={(v) => updateSettings({ heroScale: v })}
-          />
+          <SliderField icon={<Icons.size />} label={t.wheelSize} description={t.pctOfWidth} min={30} max={60} step={2} value={s.wheelSizePct} showValue onChange={(v) => updateSettings({ wheelSizePct: v })} />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <SliderField icon={<Icons.visible />} label={t.visible} min={5} max={15} step={2} value={s.visibleCount} showValue onChange={(v) => updateSettings({ visibleCount: v })} />
         </PanelSectionRow>
         <PanelSectionRow>
           <SliderField
-            label={t.visible}
-            min={5}
-            max={15}
-            step={2}
-            value={s.visibleCount}
-            showValue
-            onChange={(v) => updateSettings({ visibleCount: v })}
-          />
-        </PanelSectionRow>
-        <PanelSectionRow>
-          <SliderField
-            label={t.wheelSize}
-            description={t.pctOfWidth}
-            min={30}
-            max={60}
-            step={2}
-            value={s.wheelSizePct}
-            showValue
-            onChange={(v) => updateSettings({ wheelSizePct: v })}
-          />
-        </PanelSectionRow>
-        <PanelSectionRow>
-          <SliderField
+            icon={<Icons.capsule />}
             label={t.capsuleSize}
             description={t.base100}
             min={60}
@@ -331,6 +285,7 @@ function QuickAccessPanel() {
         </PanelSectionRow>
         <PanelSectionRow>
           <SliderField
+            icon={<Icons.textSize />}
             label={t.textSize}
             description={t.base100}
             min={70}
@@ -341,22 +296,48 @@ function QuickAccessPanel() {
             onChange={(v) => updateSettings({ textScale: v / 100 })}
           />
         </PanelSectionRow>
+        <PanelSectionRow>
+          <SliderField icon={<Icons.hero />} label={t.heroSize} description={t.pctOfWidth} min={40} max={150} step={5} value={s.heroScale} showValue onChange={(v) => updateSettings({ heroScale: v })} />
+        </PanelSectionRow>
+        {s.layout !== "bottom" && (
+          <PanelSectionRow>
+            <ToggleField icon={<Icons.history />} label={t.heroV130} description={t.heroV130Desc} indentLevel={1} checked={s.heroV130} onChange={(v) => updateSettings({ heroV130: v })} />
+          </PanelSectionRow>
+        )}
       </PanelSection>
 
       <PanelSection title={t.controls}>
         <PanelSectionRow>
-          <ToggleField
-            label={t.haptic}
-            description={t.hapticDesc}
-            checked={s.hapticEnabled}
-            onChange={(v) => updateSettings({ hapticEnabled: v })}
+          <DropdownItem
+            icon={<Icons.trackpad />}
+            label={t.pad}
+            rgOptions={[
+              { data: "left", label: t.left },
+              { data: "right", label: t.right },
+            ]}
+            selectedOption={s.rotatePad}
+            onChange={(o) => updateSettings({ rotatePad: o.data as PadSide })}
           />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ToggleField icon={<Icons.circle />} label={t.circle} description={t.circleDesc} indentLevel={1} checked={s.rawPadApi} onChange={(v) => updateSettings({ rawPadApi: v })} />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ToggleField icon={<Icons.aButton />} label={t.aLaunches} description={t.aLaunchesDesc} checked={s.aLaunches} onChange={(v) => updateSettings({ aLaunches: v })} />
+        </PanelSectionRow>
+      </PanelSection>
+
+      <PanelSection title={t.feedback}>
+        <PanelSectionRow>
+          <ToggleField icon={<Icons.haptic />} label={t.haptic} description={t.hapticDesc} checked={s.hapticEnabled} onChange={(v) => updateSettings({ hapticEnabled: v })} />
         </PanelSectionRow>
         {s.hapticEnabled && (
           <PanelSectionRow>
             <SliderField
+              icon={<Icons.strength />}
               label={t.hapticLevel}
               description={t.hapticLevelDesc(levelToDb(s.hapticLevel))}
+              indentLevel={1}
               min={1}
               max={9}
               step={1}
@@ -372,70 +353,56 @@ function QuickAccessPanel() {
         {s.hapticEnabled && (
           <PanelSectionRow>
             <ToggleField
+              icon={<Icons.deck />}
               label={t.deckOnlyHaptics}
               description={t.deckOnlyHapticsDesc}
+              indentLevel={1}
               checked={s.deckOnlyHaptics}
               onChange={(v) => updateSettings({ deckOnlyHaptics: v })}
             />
           </PanelSectionRow>
         )}
         <PanelSectionRow>
-          <ToggleField
-            label={t.sound}
-            description={t.soundDesc}
-            checked={s.soundEnabled}
-            onChange={(v) => updateSettings({ soundEnabled: v })}
-          />
-        </PanelSectionRow>
-        <PanelSectionRow>
-          <DropdownItem
-            label={t.pad}
-            rgOptions={[
-              { data: "left", label: t.left },
-              { data: "right", label: t.right },
-            ]}
-            selectedOption={s.rotatePad}
-            onChange={(o) => updateSettings({ rotatePad: o.data as PadSide })}
-          />
-        </PanelSectionRow>
-        <PanelSectionRow>
-          <ToggleField
-            label={t.circle}
-            description={t.circleDesc}
-            checked={s.rawPadApi}
-            onChange={(v) => updateSettings({ rawPadApi: v })}
-          />
+          <ToggleField icon={<Icons.sound />} label={t.sound} description={t.soundDesc} checked={s.soundEnabled} onChange={(v) => updateSettings({ soundEnabled: v })} />
         </PanelSectionRow>
       </PanelSection>
-      <PanelSection title={t.about}>
-        {KOFI_URL && (
-          <PanelSectionRow>
-            <ButtonItem layout="below" description={t.supportDesc} onClick={() => openExternal(KOFI_URL)}>
-              ☕ {t.support}
-            </ButtonItem>
-          </PanelSectionRow>
-        )}
-        {REPO_URL && (
-          <PanelSectionRow>
-            <ButtonItem layout="below" onClick={() => openExternal(REPO_URL)}>
-              {t.sourceAndUpdates}
-            </ButtonItem>
-          </PanelSectionRow>
-        )}
+
+      <PanelSection title={t.general}>
+        <PanelSectionRow>
+          <DropdownItem
+            icon={<Icons.language />}
+            label={t.language === "Language" ? "Language" : `${t.language} / Language`}
+            description={`${t.langAuto}: ${detected.raw} (${detected.source})`}
+            rgOptions={[{ data: "auto", label: t.langAuto }, ...LANGS.map((l) => ({ data: l.lang, label: l.name }))]}
+            selectedOption={s.language ?? "auto"}
+            onChange={(o) => updateSettings({ language: o.data as LangSetting })}
+          />
+        </PanelSectionRow>
+        <UpdateRow t={t} />
         <PanelSectionRow>
           <ButtonItem layout="below" description={t.reloadDesc} onClick={() => requestWheelReset()}>
-            ↻ {t.reload}
+            <IconLabel icon={Icons.reload}>{t.reload}</IconLabel>
+          </ButtonItem>
+        </PanelSectionRow>
+      </PanelSection>
+
+      <PanelSection title={t.about}>
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={() => openExternal(REPO_URL)}>
+            <IconLabel icon={Icons.github}>{t.sourceAndUpdates}</IconLabel>
           </ButtonItem>
         </PanelSectionRow>
         <PanelSectionRow>
-          <div style={{ fontSize: 12, color: "#8b929a" }}>Spindeck v{PLUGIN_VERSION}</div>
+          <ButtonItem layout="below" description={t.supportDesc} onClick={() => openExternal(KOFI_URL)}>
+            <IconLabel icon={Icons.coffee}>{t.support}</IconLabel>
+          </ButtonItem>
         </PanelSectionRow>
-        {s.odometerTurns >= 1 && (
-          <PanelSectionRow>
-            <div style={{ fontSize: 12, color: "#8b929a" }}>{t.odometer(Math.floor(s.odometerTurns).toLocaleString())}</div>
-          </PanelSectionRow>
-        )}
-        <UpdateRow t={t} />
+        <PanelSectionRow>
+          <div style={{ padding: "6px 0 2px", fontSize: 12, lineHeight: 1.6, color: "#8b929a", textAlign: "center" }}>
+            <div>Spindeck v{PLUGIN_VERSION}</div>
+            {s.odometerTurns >= 1 && <div>{t.odometer(Math.floor(s.odometerTurns).toLocaleString())}</div>}
+          </div>
+        </PanelSectionRow>
       </PanelSection>
     </>
   );
@@ -463,6 +430,7 @@ function ShelfPicker({ t, s }: { t: Strings; s: WheelSettings }) {
     <>
       <PanelSectionRow>
         <DropdownItem
+          icon={<Icons.bumper />}
           label={label}
           bottomSeparator={view ? "none" : "standard"}
           rgOptions={options}
@@ -472,7 +440,7 @@ function ShelfPicker({ t, s }: { t: Strings; s: WheelSettings }) {
       </PanelSectionRow>
       {view && (
         <PanelSectionRow>
-          <DropdownItem label={t.sort} indentLevel={1} rgOptions={sorts} selectedOption={sort} onChange={(o) => set({ [sortKey]: o.data as SortMode })} />
+          <DropdownItem icon={<Icons.sort />} label={t.sort} indentLevel={1} rgOptions={sorts} selectedOption={sort} onChange={(o) => set({ [sortKey]: o.data as SortMode })} />
         </PanelSectionRow>
       )}
     </>
@@ -483,7 +451,7 @@ function ShelfPicker({ t, s }: { t: Strings; s: WheelSettings }) {
       {slot("R1", s.r1View, s.r1Sort, updateSettings, "r1View", "r1Sort")}
       {(s.l1View || s.r1View) && (
         <PanelSectionRow>
-          <ToggleField label={t.viewAnim} description={t.viewAnimDesc} checked={s.viewAnim} onChange={(v) => updateSettings({ viewAnim: v })} />
+          <ToggleField icon={<Icons.animation />} label={t.viewAnim} description={t.viewAnimDesc} checked={s.viewAnim} onChange={(v) => updateSettings({ viewAnim: v })} />
         </PanelSectionRow>
       )}
     </>
@@ -511,7 +479,7 @@ export default definePlugin(() => {
         <QuickAccessPanel />
       </SafeBoundary>
     ),
-    icon: <WheelIcon />,
+    icon: <Icons.wheel />,
     onDismount() {
       routerHook.removeRoute(ROUTE);
       removeHomePatch();
@@ -525,6 +493,7 @@ export default definePlugin(() => {
 
 /** "Check for updates" (only when pressed), then "Update to vX" if GitHub has a newer release. */
 function UpdateRow({ t }: { t: Strings }) {
+  const s = useSettings();
   const st = useUpdateCheck();
   const [failed, setFailed] = useState(false);
   const status =
@@ -532,14 +501,31 @@ function UpdateRow({ t }: { t: Strings }) {
   return (
     <>
       <PanelSectionRow>
-        <ButtonItem layout="below" description={status} disabled={st.kind === "checking"} onClick={() => void checkNow()}>
-          {st.kind === "checking" ? t.checkingUpdates : t.checkUpdates}
+        <DropdownItem
+          icon={<Icons.channel />}
+          label={t.updateChannel}
+          description={t.updateChannelDesc}
+          rgOptions={[
+            { data: "stable", label: t.channelStable },
+            { data: "prerelease", label: t.channelPre },
+          ]}
+          selectedOption={s.updateChannel}
+          onChange={(o) => {
+            updateSettings({ updateChannel: o.data as UpdateChannel });
+            setFailed(false);
+            resetUpdateCheck();
+          }}
+        />
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <ButtonItem layout="below" description={status} disabled={st.kind === "checking"} onClick={() => void checkNow(s.updateChannel)}>
+          <IconLabel icon={Icons.update}>{st.kind === "checking" ? t.checkingUpdates : t.checkUpdates}</IconLabel>
         </ButtonItem>
       </PanelSectionRow>
       {st.kind === "available" && (
         <PanelSectionRow>
           <ButtonItem layout="below" description={failed ? t.updateManual : t.updateDesc} onClick={async () => setFailed(!(await startUpdate(st.info)))}>
-            ⬆ {t.updateTo(st.info.version)}
+            <IconLabel icon={Icons.download}>{t.updateTo(st.info.version)}</IconLabel>
           </ButtonItem>
         </PanelSectionRow>
       )}

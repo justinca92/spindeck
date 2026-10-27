@@ -6,7 +6,7 @@ import { getSettings, updateSettings, useSettings, useSettingsLoaded } from "./s
 import { playUiSound } from "./sound";
 import { onTeardown, SafeBoundary } from "./safety";
 import { debug } from "./log";
-import { BarLook, CLEAR_CLASS, CLEAR_PROPS, ensureClearStyle, focusablesIn, focusFirstIn, headerStrips, learnBarLook, learnedBarLook, removeInjectedStyles, seedBarLook, StyleKeeper, topBarBottom } from "./steamDom";
+import { CLEAR_CLASS, CLEAR_PROPS, ensureClearStyle, focusablesIn, focusFirstIn, headerStrips, learnBarLook, learnedBarLook, removeInjectedStyles, seedBarLook, StyleKeeper, topBarBottom } from "./steamDom";
 import {
   HEADER_REAPPLY_MS,
   HEADER_RESCAN_MS,
@@ -87,15 +87,20 @@ function isScrollableY(view: any, el: HTMLElement) {
 
 /** Cached per host; re-found only when Steam re-renders the home. */
 const partsCache = new WeakMap<HTMLElement, Parts>();
+/** Not found: the full scan (a style read per div) isn't repeated for this long. */
+const missUntil = new WeakMap<HTMLElement, number>();
+const PARTS_MISS_MS = 1000;
 function homeParts(host: HTMLElement | null): Parts | null {
   if (!host) return null;
   const hit = partsCache.get(host);
   if (hit && hit.vs.isConnected && host.contains(hit.vs) && hit.vs.contains(hit.sectionsBlock)) return hit;
+  if (Date.now() < (missUntil.get(host) ?? 0)) return null;
+  const miss = () => (missUntil.set(host, Date.now() + PARTS_MISS_MS), null);
   const view: any = host.ownerDocument?.defaultView ?? window;
   const vs = Array.from(host.querySelectorAll<HTMLElement>("div")).find((el) => isScrollableY(view, el));
-  if (!vs) return null;
+  if (!vs) return miss();
   const kids = (Array.from(vs.children) as HTMLElement[]).filter((el) => !el.hasAttribute(SPACER_ATTR));
-  if (kids.length < 2) return null;
+  if (kids.length < 2) return miss();
   const sectionsBlock = kids[kids.length - 1];
   const parts: Parts = {
     host,
@@ -127,7 +132,12 @@ function sectionsOffset(p: Parts) {
 /** Scroll home so the sections are in view, and optionally focus their first item. */
 function revealSections(host: HTMLElement | null, focus = true) {
   const p = homeParts(host);
-  if (!p) return;
+  if (!p) {
+    // Unrecognised home layout (Steam update?): nothing to scroll, but focus must
+    // still leave the (now hidden) wheel, or ▲ / Ⓑ would act on the wheel instead.
+    if (focus) focusFirstIn(host);
+    return;
+  }
   p.vs.scrollTop = sectionsOffset(p);
   if (!focus) return;
   // Focus the CURRENT tab (What's New / Friends / Recommended), like the stock
@@ -275,7 +285,8 @@ function syncHeader(keeper: StyleKeeper, doc: Document, screen: Screen, host: HT
     releaseRow(row);
     keeper.keepOnly(new Set());
     const fresh = learnBarLook(strips);
-    if (fresh) saveBarLook(fresh);
+    // Saved, so the band is right from the first frame next time.
+    if (fresh) updateSettings({ barLook: fresh });
   }
   const look = learnedBarLook();
   if (!row || !rowVisible || !look) {
@@ -312,10 +323,6 @@ function syncHeader(keeper: StyleKeeper, doc: Document, screen: Screen, host: HT
 
 
 
-/** Persist the learned look so the band is right from the first frame next time. */
-function saveBarLook(look: BarLook) {
-  updateSettings({ barLook: look });
-}
 
 // ───────────────────────── Component ─────────────────────────
 type Screen = "wheel" | "sections";
@@ -540,17 +547,16 @@ function WheelHome({ original }: { original: ReactNode }) {
     const doc = root.current?.ownerDocument;
     if (!doc) return;
     let disposed = false;
+    const view: any = doc.defaultView ?? window;
     const sync = () => {
-      if (!disposed) syncHeader(keeper, doc, screen, sections.current);
+      // A game or overlay in front: nothing to see, so no layout work (the next tick catches up).
+      if (disposed || doc.visibilityState === "hidden") return;
+      syncHeader(keeper, doc, screen, sections.current);
+      rebind();
     };
-    sync();
-    const ts = [150, 400].map((ms) => setTimeout(sync, ms));
-    const iv = setInterval(sync, HEADER_REAPPLY_MS);
-    const vs = homeParts(sections.current)?.vs;
     let settle: any;
     let raf = 0;
     let rowAway = false;
-    const view: any = doc.defaultView ?? window;
     const onScroll = () => {
       clearTimeout(settle);
       settle = setTimeout(sync, SCROLL_SETTLE_MS);
@@ -568,13 +574,31 @@ function WheelHome({ original }: { original: ReactNode }) {
         }
       });
     };
-    vs?.addEventListener("scroll", onScroll, { passive: true });
     // Steam can replace the tab row element itself (tab switch, re-render):
     // re-sync right away instead of waiting for the next tick.
-    const rowParent = homeParts(sections.current)?.header?.parentElement;
     const MO = (doc.defaultView as any)?.MutationObserver;
-    const mo = rowParent && MO ? new MO(() => sync()) : null;
-    mo?.observe(rowParent, { childList: true });
+    const mo = MO ? new MO(() => sync()) : null;
+    // The scroller and tab row are re-found on every sync: when Steam re-renders
+    // its home, the listeners move to the new elements instead of staying on the old ones.
+    let vs: HTMLElement | undefined;
+    let rowParent: HTMLElement | null | undefined;
+    function rebind() {
+      const p = homeParts(sections.current);
+      if (p?.vs !== vs) {
+        vs?.removeEventListener("scroll", onScroll);
+        vs = p?.vs;
+        vs?.addEventListener("scroll", onScroll, { passive: true });
+      }
+      const parent = p?.header?.parentElement;
+      if (parent !== rowParent) {
+        mo?.disconnect();
+        rowParent = parent;
+        if (rowParent) mo?.observe(rowParent, { childList: true });
+      }
+    }
+    sync();
+    const ts = [150, 400].map((ms) => setTimeout(sync, ms));
+    const iv = setInterval(sync, HEADER_REAPPLY_MS);
     return () => {
       disposed = true;
       ts.forEach(clearTimeout);
@@ -593,7 +617,14 @@ function WheelHome({ original }: { original: ReactNode }) {
     let restore: (() => void) | null = null;
     const view: any = host.ownerDocument?.defaultView ?? window;
     const mode = () => (tm.current.restingOnWheel ? "top" : screenRef.current === "sections" ? "sections" : "free");
-    const tryHide = () => !!(restore ??= hideFirstShelf(host, mode));
+    let hiddenIn: HTMLElement | undefined; // the scroller whose row we hid
+    const tryHide = () => {
+      if (!restore) {
+        restore = hideFirstShelf(host, mode);
+        hiddenIn = restore ? homeParts(host)?.vs : undefined;
+      }
+      return !!restore;
+    };
     const mo = view.MutationObserver ? new view.MutationObserver(() => tryHide() && mo.disconnect()) : null;
     if (!tryHide()) mo?.observe(host, { childList: true, subtree: true });
     const giveUp = setTimeout(() => {
@@ -602,11 +633,20 @@ function WheelHome({ original }: { original: ReactNode }) {
       // Steam's home as is; nothing else depends on this.
       if (!restore) debug("home", "recent-games row not found; leaving the home as is");
     }, 8000);
+    // Steam re-rendered its whole home (a new scroller): hide the new recent row
+    // too, and put the sections back in place if they're showing.
+    const recheck = setInterval(() => {
+      if (!restore || hiddenIn?.isConnected) return;
+      restore();
+      restore = null;
+      if (tryHide() && screenRef.current === "sections") revealSections(host, false);
+    }, HEADER_REAPPLY_MS);
     const unregister = onTeardown(() => restore?.());
     return () => {
       unregister();
       mo?.disconnect();
       clearTimeout(giveUp);
+      clearInterval(recheck);
       restore?.();
       restore = null;
     };

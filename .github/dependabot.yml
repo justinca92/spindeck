@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: npm
+    directory: /devtools/mock
+    schedule: { interval: weekly }
+    groups:
+      # react and react-dom must stay on the exact same version.
+      react:
+        patterns: [react, react-dom]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **Unknown home layout:** ▼ to the sections now moves focus off the hidden wheel (`revealSections` focuses the first item when it can't read the layout). Before, ▲ then went to search instead of back to the wheel.
+- **Steam re-rendering its whole home** while the sections are shown: the new recent row is hidden too and the sections are put back in place (checked every `HEADER_REAPPLY_MS`). Before, the band stretched over the unhidden row.
+
+### Changed
+- **Wheel animation:** `WheelRing` renders only when the set of games on it changes (a step, or the motion passing a whole game); each frame in between writes the capsules' transform, z-index and opacities directly.
+- **Top bar scan:** a `TreeWalker` skips Spindeck's own layer, and Steam's home inside it, as one subtree. The full re-scan runs every 15 s instead of 5 s, and still at once when a known bar element leaves the page.
+- **`dist/` is no longer committed:** the release workflow builds it, and `bun build/build.ts` locally.
+- **Tests:** the old `tests/*.mjs` scripts, which only ran on one machine, are replaced by Playwright specs in CI (`regressions.spec.ts`, `home.spec.ts`). The mock now patches routes like Decky does and runs production React.
+
+## 1.5.0-rc.1 — 2026-10-26
+
+### Added
+- **Ⓐ launches the game** (panel → Wheel controls, `aLaunches`, off by default): Ⓐ runs `SteamClient.Apps.RunGame(gameid)` and Ⓧ (`onSecondaryButton`) opens the game page. Ⓐ is ignored while the roulette or the L1/R1 swap is moving (`spinningRef` / `fxBusy`), and a game that isn't installed opens its page instead. `launch()` falls back to the game page if `RunGame` throws.
+- **Update channel** (panel → About, `updateChannel`: `stable` by default or `prerelease`). Stable reads `releases/latest`, as before. Pre-release reads `releases?per_page=20`, skips drafts and offers the newest version, pre-releases included, so it returns to the stable line once the final release is out. Changing the channel clears the last check's answer.
+- **Languages:** de, fr, es, pt (Brazilian), ru, uk, ja, zh (Simplified) in `src/lang/*.ts`, typed against the Korean source strings. `locale.ts` maps Steam's language names (`german`, `latam`, `brazilian`, `schinese`, `tchinese`, …) and BCP 47 codes to them (`LANGS`, `langFor`). The panel's language picker lists all of them. Slavic plurals and decimal commas come from `src/lang/format.ts`.
+- **Tests and dev tools:** unit tests on `src/*.ts` with `node --test` (`tests/unit/`), a browser mock of Steam / Decky that runs the real plugin against the real `main.py` (`devtools/mock/`), and Playwright smoke + E2E tests on it. CI runs them on every push and PR.
+- `SECURITY.md`, a project page (`docs/`, GitHub Pages) and `AGENTS.md`.
+
+### Changed
+- **In-panel update:** `startUpdate` refuses a release without GitHub's sha256 digest (Decky skips its check on an empty hash) or with a download URL outside `github.com/justinca92/spindeck/releases/download/`. `newer()` ranks a release above its own pre-releases (`1.5.0` > `1.5.0-rc.2` > `1.5.0-rc.1`).
+- **Panel regrouped** (`QuickAccessPanel`): haptics, strength, Deck-only haptics and sound move to a new **Haptics & sound** section, and language, update channel, check for updates and reload to a new **General** section. Display is ordered wheel → capsules → hero art. Dependent options use `indentLevel` (sort, trackpad circle, haptic strength, Deck-only haptics, v1.3.0 hero art). About ends with the version and odometer. New strings: `feedback`, `general`. Every row has a line icon (`src/icons.tsx`: inline SVG in `currentColor`, no icon library), passed as Decky's field `icon` or in front of a button's text (`IconLabel`).
+- **Library refresh:** the game list and the collections are re-read when Steam's window regains focus, only while the wheel is shown, not mid-roulette, at most every 10 s (`LIBRARY_REFRESH_MS`).
+- `PLUGIN_VERSION` is injected from `package.json` at build time.
+- Release workflow: actions pinned to commit SHAs. A read-only `build` job and a `publish` job (`gh release create`, the only `contents: write`). Tags with a `-` are published as pre-releases.
+- Settings migrations v2–v7 collapsed (same results). Unused rollup build path and dependencies removed. TypeScript 7.
+
+### Fixed
+- Haptics service and ≡ menu lookups: a miss is retried (haptics after 5 s, the menu on the next press) instead of being cached for the session.
+- `subscribeKeyboardAnalogWheel`: if registering for analog messages fails, the keyboard action set is turned back off and not kept alive.
+- Home header: the scroll listener and tab-row observer follow Steam's re-rendered elements, header sync is skipped while the document is hidden, and a failed home-layout lookup isn't repeated for 1 s.
+- `FallbackImg` starts a new image list at its first URL in the same render. Capsule preloading follows the list.
+- Panel text fields save on close instead of dropping the last edit. Controller input is logged once per message shape.
+
 ## 1.4.1 — 2026-10-08
 
 ### Added

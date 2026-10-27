@@ -54,7 +54,7 @@ function onList(list: any) {
 }
 
 /** Note where an input came from (controller index). */
-export function noteInput(idx: unknown) {
+function noteInput(idx: unknown) {
   if (typeof idx === "number" && idx >= 0) lastIdx = idx;
 }
 
@@ -95,11 +95,17 @@ function onActive(...args: any[]) {
   }
 }
 
+const loggedInputShapes = new Set<string>();
 function onInput(...args: any[]) {
   // Newer clients pass an array of { nController, nA, bS }; older ones
   // (controllerIndex, button, pressed).
   const a = args[0];
-  debug("controllers", "input", args);
+  // Every button press arrives here: log each message shape once, not every message.
+  const shape = Array.isArray(a) ? `array:${Object.keys(a[0] ?? {}).join(",")}` : `args:${args.length}`;
+  if (!loggedInputShapes.has(shape)) {
+    loggedInputShapes.add(shape);
+    debug("controllers", "input", shape, args);
+  }
   if (Array.isArray(a)) {
     for (const m of a) if (m?.bS !== false) noteInput(m?.nController ?? m?.controllerIndex);
   } else noteInput(a);

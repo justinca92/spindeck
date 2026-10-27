@@ -5,6 +5,7 @@ import { resolve } from "path";
 
 const root = resolve(import.meta.dir, "..");
 const pluginName: string = JSON.parse(readFileSync(resolve(root, "plugin.json"), "utf8")).name;
+const version: string = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")).version;
 const shim = (f: string) => resolve(import.meta.dir, "shims", f);
 
 const result = await Bun.build({
@@ -14,7 +15,7 @@ const result = await Bun.build({
   format: "esm",
   target: "browser",
   minify: false,
-  define: { __PLUGIN_NAME__: JSON.stringify(pluginName) },
+  define: { __PLUGIN_NAME__: JSON.stringify(pluginName), __PLUGIN_VERSION__: JSON.stringify(version) },
   plugins: [
     {
       name: "decky-externals",

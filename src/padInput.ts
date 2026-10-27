@@ -56,7 +56,7 @@ function makeStepper(opts: PadWheelOptions) {
   };
 }
 
-export const ANALOG_TYPE = { left: 48, right: 49 } as const;
+const ANALOG_TYPE = { left: 48, right: 49 } as const;
 const ANALOG_DEADZONE = 0.12; // normalized radius; the centre is noisy
 const ANALOG_GESTURE_GAP_MS = 150; // messages stop while not touching
 const MAX_TURN_PER_MESSAGE = Math.PI / 2; // larger = a jump (e.g. pad reset on B), not rubbing
@@ -110,8 +110,17 @@ export function subscribeKeyboardAnalogWheel(opts: PadWheelOptions): () => void 
     });
     Input.EnableControllerAnalogInputMessages?.(true);
     Input.SetKeyboardActionset(true, false);
-  } catch {
-    /* unavailable on this client */
+  } catch (e) {
+    // Unavailable on this client. Never leave the keyboard action set on without
+    // our listener: Steam would then read pad rubbing as Ⓑ / Steam-menu presses.
+    debug("analog", "circle input unavailable", e);
+    try {
+      reg?.unregister?.();
+      Input.SetKeyboardActionset(false, false);
+    } catch {
+      /* ignore */
+    }
+    return () => {};
   }
   // Steam drops the action set unless it's refreshed, as its radial menu does.
   const keep = setInterval(() => {

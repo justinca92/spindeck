@@ -1,7 +1,6 @@
 // How many of the user's friends are in this game right now, from Steam's
 // friends store (the same data the Friends list shows). Not public API: the
-// store and field names vary by client, so everything is defensive, read only,
-// and the shape is logged once (debug level) for checking on device.
+// store and field names vary by client, so everything is defensive and read only.
 // Returns null when it can't tell (then the UI shows nothing).
 
 import { debug } from "./log";
@@ -27,25 +26,11 @@ function playing(f: any): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-let logged = false;
 export function friendsInGame(appid: number): number | null {
   try {
     const fs = store();
-    if (!fs) {
-      if (!logged) debug("friends", "no friends store");
-      logged = true;
-      return null;
-    }
+    if (!fs) return null;
     const list = friendsList(fs);
-    if (!logged) {
-      logged = true;
-      const f = list[0];
-      debug("friends", "store", {
-        keys: Object.keys(fs).slice(0, 40),
-        count: list.length,
-        sample: f && { keys: Object.keys(f).slice(0, 30), persona: f.persona && Object.keys(f.persona).slice(0, 40) },
-      });
-    }
     if (!list.length) return null;
     let n = 0;
     for (const f of list) if (playing(f) === appid) n++;

@@ -2,8 +2,9 @@
 // survive reboots and Steam client restarts. The backend deletes that file
 // when the plugin is uninstalled.
 import { callable } from "@decky/api";
-import { useEffect, useState } from "react";
-import { getLang } from "./locale";
+import { useSyncExternalStore } from "react";
+import { getLang, type LangSetting } from "./locale";
+import { STRINGS } from "./i18n";
 
 export type SortMode = "recent" | "alpha" | "playtime";
 export type PadSide = "left" | "right";
@@ -29,20 +30,22 @@ export interface WheelSettings {
   heroScale: number;          // sharp hero art width as % of screen width
   layout: "side" | "bottom";  // wheel on the screen edge, or rising from the bottom
   heroV130: boolean;          // side layout: hero art exactly as 1.3.0 drew it (position, backdrop, fades)
-  soundEnabled: boolean;
-  hapticEnabled: boolean;
-  hapticLevel: number; // 1–9 (5 = Steam's radial-menu strength); default 7     // tick on the rotating trackpad, like Steam's radial menu
+  soundEnabled: boolean;      // play Steam's UI sound on each wheel step
+  hapticEnabled: boolean;     // tick on the rotating trackpad, like Steam's radial menu
+  hapticLevel: number;        // 1–9 (5 = Steam's radial-menu strength)
   odometerTurns: number;     // easter egg: total trackpad turns ever spun (finger only)
   settingsVersion: number;    // bumped when a default must be re-applied to saved settings
-  rawPadApi: boolean;         // advanced: subscribe to raw controller state (off by default)      // play Steam's UI sound on each wheel step   // hide the original home's top "recent games" row below the wheel
+  rawPadApi: boolean;         // trackpad circle rotation: subscribe to raw controller state
   stepDegrees: number;    // trackpad degrees per wheel step (lower = more sensitive)
   hapticDegrees: number;  // trackpad degrees per haptic click (finer than steps feels like a scroll wheel)
   rotatePad: PadSide;     // which trackpad spins the wheel
-  language: "auto" | "ko" | "en"; // UI language; auto = follow Steam
+  aLaunches: boolean;     // Ⓐ launches the game and Ⓧ opens its page (off: Ⓐ opens the page)
+  updateChannel: "stable" | "prerelease"; // "Check for updates": stable releases only, or pre-releases too
+  language: LangSetting; // UI language; auto = follow Steam
   barLook?: { color: string; image: string; backdrop: string }; // Steam's opaque top bar, learned
 }
 
-export const DEFAULTS: WheelSettings = {
+const DEFAULTS: WheelSettings = {
   homeEnabled: true,
   ownerText: "나의 스팀덱",
   subtitleText: "",
@@ -71,6 +74,8 @@ export const DEFAULTS: WheelSettings = {
   stepDegrees: 40,
   hapticDegrees: 5,
   rotatePad: "left",
+  aLaunches: false,
+  updateChannel: "stable",
   language: "auto",
 };
 
@@ -87,67 +92,34 @@ export async function initSettings() {
   try {
     const saved = await backendGet();
     // Default bottom text in the UI language, until the user sets their own.
-    const merged: any = { ...DEFAULTS, ownerText: getLang() === "ko" ? "나의 스팀덱" : "My Steam Deck", ...(saved ?? {}) };
+    const merged: any = { ...DEFAULTS, ownerText: STRINGS[getLang()].defaultOwner, ...(saved ?? {}) };
     // Older saves stored a boolean instead of a scope.
     if (saved && "installedOnly" in saved && !("libraryScope" in saved)) {
       merged.libraryScope = (saved as any).installedOnly ? "installed" : "all";
     }
     // 1.2.0: "Show" became a full view pick (library or collection).
     if (saved && !("baseView" in saved) && merged.libraryScope) merged.baseView = `base:${merged.libraryScope}`;
-    delete merged.libraryScope;
-    delete merged.installedOnly;
-    delete merged.clockwiseIsNext; // option removed in 0.2.3
-    // v2 (0.4.2): the raw controller API is the only path that sees the LEFT
-    // trackpad (Steam UI scrolls internally, no wheel events). It was turned off
-    // in 0.3.0 on suspicion of breaking UI sounds — that was a muted WirePlumber
-    // stream instead — so turn it back on once for existing saves.
-    if ((merged.settingsVersion ?? 1) < 2) {
-      merged.rawPadApi = true;
-      merged.settingsVersion = 2;
-      needsSave = true;
-    }
-    // v3 (0.5.1): the keyboard-action-set input (0.5.0) makes Steam treat pad
-    // rubbing as B / Steam-menu presses on the home screen, so it is off again.
-    if (merged.settingsVersion < 3) {
-      merged.rawPadApi = false;
-      merged.settingsVersion = 3;
-      needsSave = true;
-    }
-    // v4 (0.5.14): circle rubbing confirmed working on device → on by default again.
-    if (merged.settingsVersion < 4) {
-      merged.rawPadApi = true;
-      merged.settingsVersion = 4;
-      needsSave = true;
-    }
+    const v: number = merged.settingsVersion;
+    // v2–v4 (0.4.2–0.5.14): the raw controller API (the only path that sees the
+    // LEFT trackpad) went on, off, then on again once circle rubbing was confirmed on device.
+    if (v < 4) merged.rawPadApi = true;
     // v5 (0.9.17): tuned on device — 40° per game, a haptic click every 5°;
     // both sliders and the haptic-style picker were removed, so apply them.
-    if (merged.settingsVersion < 5) {
+    if (v < 5) {
       merged.stepDegrees = DEFAULTS.stepDegrees;
       merged.hapticDegrees = DEFAULTS.hapticDegrees;
-      merged.settingsVersion = 5;
-      needsSave = true;
     }
     // v6 (1.0.1): default haptic strength raised 5 → 7; move saves still on the old default.
-    if (merged.settingsVersion < 6) {
-      if ((merged.hapticLevel ?? 5) === 5) merged.hapticLevel = DEFAULTS.hapticLevel;
-      merged.settingsVersion = 6;
-      needsSave = true;
-    }
+    if (v < 6 && (merged.hapticLevel ?? 5) === 5) merged.hapticLevel = DEFAULTS.hapticLevel;
     // v7 (1.3.1): hero art moved away from the wheel; its default size went
     // 105 → 95 so it's cropped less at the screen edge. Move saves still on the old default.
-    if (merged.settingsVersion < 7) {
-      if ((merged.heroScale ?? 105) === 105) merged.heroScale = DEFAULTS.heroScale;
-      merged.settingsVersion = 7;
+    if (v < 7 && (merged.heroScale ?? 105) === 105) merged.heroScale = DEFAULTS.heroScale;
+    if (v < DEFAULTS.settingsVersion) {
+      merged.settingsVersion = DEFAULTS.settingsVersion;
       needsSave = true;
     }
-    delete merged.dockedNoHaptics; // 1.3.0 test builds only
-    delete merged.shelfCollections; // 1.2.0 pre-release builds only
-    delete merged.favoritesOnL1;
-    delete merged.hapticMode;
-    delete merged.hideRecentShelf; // always on since 0.9.4 (toggle removed)
-    delete merged.checkUpdates; // 1.4.1 test builds only
-    delete merged.updateNotified; // 1.4.1 test builds only
-    current = merged;
+    // Only keys this version knows: anything an older (or test) build saved is dropped.
+    current = Object.fromEntries(Object.entries(merged).filter(([k]) => k in DEFAULTS || k === "barLook")) as any;
     if (needsSave) backendSet(current).catch(() => {});
   } catch (e) {
     console.error("[Spindeck] failed to load settings", e);
@@ -174,18 +146,6 @@ export function updateSettings(patch: Partial<WheelSettings>) {
   }, 400);
 }
 
-function useStore<T>(read: () => T): T {
-  const [v, setV] = useState(read);
-  useEffect(() => {
-    const l = () => setV(read());
-    listeners.add(l);
-    l();
-    return () => {
-      listeners.delete(l);
-    };
-  }, []);
-  return v;
-}
-
-export const useSettings = () => useStore(() => current);
-export const useSettingsLoaded = () => useStore(() => loaded);
+const subscribe = (l: () => void) => (listeners.add(l), () => void listeners.delete(l));
+export const useSettings = () => useSyncExternalStore(subscribe, () => current);
+export const useSettingsLoaded = () => useSyncExternalStore(subscribe, () => loaded);

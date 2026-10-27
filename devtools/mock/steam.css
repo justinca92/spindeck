@@ -1,0 +1,50 @@
+/* Steam Deck Gaming Mode, roughly: 1280×800, dark, Motiva-like sans. */
+html, body { margin: 0; height: 100%; background: #0e141b; color: #dcdedf; font: 14px/1.4 "Motiva Sans", "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+* { box-sizing: border-box; }
+button, input { font: inherit; }
+[data-focusable]:focus-visible, [data-focusable]:focus, button:focus, input:focus { outline: 2px solid #fff; outline-offset: -2px; }
+
+/* Steam's header: fixed, 40px, see-through on the home (the plugin clears/paints it). */
+.steam-header { position: fixed; top: 0; left: 0; right: 0; height: 40px; z-index: 6001; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(20px); }
+.steam-search { height: 28px; width: 220px; border: 0; border-radius: 4px; padding: 0 10px; background: #ffffff1a; color: #fff; }
+.dev-nav { margin-left: auto; display: flex; gap: 6px; }
+.dev-nav button { border: 0; border-radius: 4px; padding: 4px 10px; background: #ffffff1f; color: #cfd6de; cursor: pointer; }
+
+/* Steam's home stand-in (laid out like the real one: a scroller with the recent row, then the sections). */
+.steam-home { height: 100%; overflow-y: auto; background: #1a2029; }
+.recent-row { height: 561px; display: flex; gap: 12px; align-items: center; padding: 60px 24px 0; background: linear-gradient(#2a3442, #1a2029); }
+.recent-row button, .tab-row button, .section-body button { border: 0; border-radius: 4px; padding: 10px 14px; background: #3d4450; color: #fff; }
+/* Like Steam: only the selected tab is painted (a pill); the others are plain text. */
+.tab-row button { background: transparent; }
+.tab-row { height: 58px; display: flex; gap: 8px; align-items: center; padding: 0 24px; background: #23262e; }
+.section-body { min-height: 1500px; padding: 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+
+.game-page { position: fixed; inset: 0; padding: 80px 48px; background: linear-gradient(#25303d, #0e141b); }
+.game-page h1 { margin: 0 0 8px; font-size: 40px; }
+
+/* Quick Access: right-side panel. */
+.qam { position: fixed; top: 40px; right: 0; bottom: 0; /* below the header: its dev buttons stay reachable */ width: 360px; z-index: 7000; overflow-y: auto; padding: 12px 12px 40px; background: #23262e; box-shadow: -8px 0 24px #0008; }
+.qam-head { padding: 6px 4px 10px; font-size: 18px; font-weight: 700; }
+.panel-section h3 { margin: 18px 4px 6px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #8b929a; }
+.field { display: block; padding: 8px 10px; border-radius: 4px; }
+.field:focus { background: #3d4450; }
+.field .row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.label { color: #fff; display: flex; align-items: center; gap: 8px; }
+.field-icon { display: inline-flex; color: #b8bcbf; font-size: 18px; }
+.field:focus .field-icon { color: #fff; }
+.desc { color: #8b929a; font-size: 12px; }
+.switch { flex-shrink: 0; width: 38px; height: 20px; border-radius: 10px; background: #4b5361; position: relative; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #c7d0da; transition: left 0.1s; }
+.switch.on { background: #1a9fff; }
+.switch.on::after { left: 20px; background: #fff; }
+.slider, .dropdown { flex-shrink: 0; color: #1a9fff; font-weight: 700; }
+.button .button-label { color: #fff; }
+.button.disabled { opacity: 0.5; }
+.text input { width: 100%; margin-top: 4px; padding: 6px 8px; border: 0; border-radius: 4px; background: #0e141b; color: #fff; }
+.dialog-button { display: inline-block; margin-top: 16px; padding: 10px 24px; border-radius: 4px; background: #1a9fff; color: #fff; font-weight: 700; }
+
+.modal { position: fixed; inset: 0; z-index: 8000; display: grid; place-items: center; background: #000a; }
+.modal-root { min-width: 420px; padding: 24px; border-radius: 8px; background: #23262e; }
+
+.event-log { position: fixed; left: 8px; bottom: 8px; z-index: 9000; width: 460px; max-height: 300px; overflow: auto; padding: 8px 10px; border-radius: 6px; background: #000c; color: #b8c2cc; font: 11px/1.5 ui-monospace, Consolas, monospace; pointer-events: none; }
+.event-log b { color: #66c0f4; }

@@ -6,7 +6,7 @@
 import { debug } from "./log";
 
 const BASE = "https://steamloopback.host/sounds/";
-export const SOUNDS = {
+const SOUNDS = {
   step: "deck_ui_navigation.wav",
   launch: "deck_ui_launch_game.wav",
   detail: "deck_ui_into_game_detail.wav",

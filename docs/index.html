@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spindeck — a rotary-wheel home screen for Steam Deck</title>
+<meta name="description" content="Spindeck replaces the Steam Deck home screen with a rotary game wheel. Rub a circle on the trackpad and feel every game click by. Free, open source, Decky Loader plugin.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://justinca92.github.io/spindeck/">
+<meta name="theme-color" content="#0b0f16">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://justinca92.github.io/spindeck/">
+<meta property="og:title" content="Spindeck — a rotary-wheel home screen for Steam Deck">
+<meta property="og:description" content="Spin your library with a circle on the trackpad and feel every game click by.">
+<meta property="og:image" content="https://justinca92.github.io/spindeck/demo.gif">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --bg: #0b0f16; --bg2: #10151f; --card: #161c27; --line: #ffffff14;
+    --text: #e6edf3; --muted: #8b97a6; --accent: #66c0f4; --gold: #e3b341;
+    --radius: 14px; --max: 1080px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 "Motiva Sans", "Segoe UI", system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 20px; }
+  nav { position: sticky; top: 0; z-index: 10; background: #0b0f16cc; backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+  nav .wrap { display: flex; align-items: center; gap: 20px; height: 56px; }
+  nav .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; color: var(--text); }
+  nav .brand img { width: 26px; height: 26px; }
+  nav .links { margin-left: auto; display: flex; gap: 18px; font-size: 14px; }
+  nav .links a { color: var(--muted); }
+  nav .links a:hover { color: var(--text); text-decoration: none; }
+
+  /* Hero */
+  .hero { position: relative; overflow: hidden; padding: 72px 0 40px; background: radial-gradient(1200px 520px at 85% 10%, #1b3a55 0%, transparent 60%), radial-gradient(800px 400px at 0% 100%, #2b1d44 0%, transparent 60%); }
+  .hero .wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; align-items: center; }
+  .eyebrow { display: inline-block; padding: 4px 12px; border-radius: 999px; background: #66c0f41a; color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; }
+  h1 { margin: 16px 0 14px; font-size: clamp(36px, 5vw, 58px); line-height: 1.05; letter-spacing: -0.02em; }
+  h1 span { background: linear-gradient(90deg, var(--accent), #a970ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { margin: 0 0 26px; max-width: 34em; color: #c4ced9; font-size: 18px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px; font-weight: 700; }
+  .btn.primary { background: var(--accent); color: #0b0f16; }
+  .btn.ghost { border: 1px solid #ffffff2a; color: var(--text); }
+  .btn:hover { text-decoration: none; filter: brightness(1.08); }
+  .fine { margin-top: 14px; color: var(--muted); font-size: 13px; }
+
+  /* The wheel: capsules on an arc, spinning (drag or scroll to spin it yourself). */
+  .stage { position: relative; aspect-ratio: 1 / 1; max-width: 480px; width: 100%; justify-self: center; touch-action: pan-y; user-select: none; cursor: grab; }
+  .stage:active { cursor: grabbing; }
+  .ring { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle, transparent 54%, #ffffff08 55%, transparent 56%); }
+  .cap { position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 2 / 3; margin: -16.5% 0 0 -11%; border-radius: 10px; box-shadow: 0 10px 26px #000a; display: flex; align-items: flex-end; padding: 8px; font-size: 11px; font-weight: 800; color: #fffd; letter-spacing: 0.02em; will-change: transform, opacity; }
+  .cap.sel { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .hub { position: absolute; left: 50%; top: 50%; width: 30%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle at 35% 30%, #22344a, #0e141c 70%); box-shadow: inset 0 0 0 2px #ffffff12, 0 0 60px #66c0f433; display: grid; place-items: center; text-align: center; }
+  .hub b { display: block; font-size: clamp(12px, 2vw, 15px); color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; }
+  .hub small { color: var(--muted); font-size: 11px; }
+  .pill { position: absolute; left: 50%; bottom: 2%; transform: translateX(-50%); display: inline-flex; gap: 8px; align-items: center; padding: 5px 12px 5px 6px; border-radius: 999px; background: #0b0f16cc; box-shadow: 0 0 0 1px #66c0f455; font-size: 13px; font-weight: 700; white-space: nowrap; }
+  .pill i { width: 20px; height: 20px; border-radius: 10px; display: inline-grid; place-items: center; background: var(--gold); color: #0b0f16; font-style: normal; font-size: 12px; font-weight: 900; }
+
+  section { padding: 72px 0; }
+  section.alt { background: var(--bg2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  h2 { margin: 0 0 10px; font-size: clamp(26px, 3.2vw, 36px); letter-spacing: -0.01em; }
+  .sub { margin: 0 0 34px; color: var(--muted); max-width: 40em; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { padding: 22px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--line); }
+  .card .ico { font-size: 24px; }
+  .card h3 { margin: 10px 0 6px; font-size: 17px; }
+  .card p { margin: 0; color: #aab5c2; font-size: 15px; }
+
+  .demo { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; align-items: center; }
+  /* The demo GIF in a Deck-like bezel, at its own 16:9 shape. */
+  .demo figure { margin: 0; padding: 14px; border-radius: 26px; background: linear-gradient(#1c222c, #12161d); box-shadow: inset 0 0 0 1px #ffffff12, 0 30px 60px #0009; }
+  .demo img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; background: #000; }
+  .demo figcaption { margin-top: 10px; color: var(--muted); font-size: 13px; text-align: center; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td:first-child { width: 42%; color: var(--text); font-weight: 700; white-space: nowrap; }
+  td:last-child { color: #aab5c2; }
+  kbd { display: inline-block; min-width: 26px; padding: 1px 7px; border-radius: 6px; background: #ffffff14; border: 1px solid #ffffff22; font: 700 13px/1.6 inherit; text-align: center; }
+
+  ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  ol.steps li { counter-increment: s; position: relative; padding: 52px 18px 18px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--line); color: #c4ced9; font-size: 15px; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 18px; top: 16px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #0b0f16; font-weight: 900; font-size: 14px; }
+  ol.steps b { color: var(--text); }
+  code { padding: 1px 6px; border-radius: 5px; background: #ffffff12; font-size: 0.9em; }
+
+  .langs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .langs span { padding: 6px 12px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 14px; }
+  .trust { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  details { padding: 16px 18px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--line); }
+  details + details { margin-top: 10px; }
+  summary { cursor: pointer; font-weight: 700; }
+  details p { margin: 10px 0 0; color: #aab5c2; }
+  footer { padding: 36px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; }
+
+  @media (max-width: 880px) {
+    .hero .wrap, .demo, .trust { grid-template-columns: 1fr; }
+    .grid, ol.steps { grid-template-columns: 1fr 1fr; }
+    nav .links a:not(.keep) { display: none; }
+    .stage { max-width: 360px; }
+  }
+  @media (max-width: 560px) {
+    .grid, ol.steps { grid-template-columns: 1fr; }
+    td:first-child { white-space: normal; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#"><img src="favicon.svg" alt="">Spindeck</a>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#controls">Controls</a>
+      <a href="#install">Install</a>
+      <a href="#faq">FAQ</a>
+      <a class="keep" href="https://github.com/justinca92/spindeck">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Decky Loader plugin · free &amp; open source</span>
+      <h1>Your library, on a <span>wheel you can feel</span>.</h1>
+      <p class="lede">Spindeck replaces the Steam Deck home screen with a rotary game wheel. Rub a circle on the trackpad and every game clicks by with Steam's own haptic tick. Stop on one to see its playtime, achievements and who's playing it.</p>
+      <div class="cta">
+        <a class="btn primary" href="#install">Install Spindeck</a>
+        <a class="btn ghost" href="https://github.com/justinca92/spindeck/releases/latest">Latest release ↗</a>
+      </div>
+      <p class="fine">Turn it off and Steam's own home is back. It never changes Steam's settings or files.</p>
+    </div>
+    <div class="stage" id="stage" aria-label="An animated preview of the Spindeck wheel. Drag or scroll to spin it." role="img">
+      <div class="ring"></div>
+      <div class="hub"><div><b id="hubName">Aether Drift</b><small id="hubInfo">12.6 HRS · TODAY</small></div></div>
+      <div class="pill"><i>Y</i><span id="pill">Today's game?</span></div>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <h2>Built for the Deck in your hands</h2>
+    <p class="sub">Everything is reachable with the controller, follows Steam's look, and gets out of the way when you'd rather have Steam's own home.</p>
+    <div class="grid">
+      <div class="card"><div class="ico">🌀</div><h3>Trackpad circle rotation</h3><p>Rub the trackpad in a circle to spin the wheel, with Steam's radial-menu haptic on that pad at the strength you choose. On another controller the Deck stays quiet.</p></div>
+      <div class="card"><div class="ico">🎯</div><h3>Game info at a glance</h3><p>Rest on a game to see its playtime, when you last played, achievement progress and how many friends are in it right now.</p></div>
+      <div class="card"><div class="ico">🎲</div><h3>Today's game</h3><p>Can't decide? Press Ⓨ and a roulette spins the wheel and lands on a random game. Press Ⓨ again to stop it on the spot.</p></div>
+      <div class="card"><div class="ico">🔀</div><h3>Main wheel + L1 / R1</h3><p>Installed games, the whole library, ★ Favorites or any Steam collection, each with its own sort. Every view remembers where you were.</p></div>
+      <div class="card"><div class="ico">🖼️</div><h3>Two layouts</h3><p>A dial on the screen edge with the hero art beside it, or a wheel rising from a lower corner under full-width art.</p></div>
+      <div class="card"><div class="ico">✍️</div><h3>Make it yours</h3><p>Your own title in the corner (“j1's Steam Deck”), a subtitle and an accent colour. A dial odometer counts every turn you've ever spun.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="controls">
+  <div class="wrap demo">
+    <figure>
+      <img src="demo.gif" alt="Spindeck on a Steam Deck: spinning the wheel, then the Ⓨ roulette" loading="lazy" width="640" height="360">
+      <figcaption>Spinning the wheel with the trackpad, then Ⓨ for today's game</figcaption>
+    </figure>
+    <div>
+      <h2>Controls</h2>
+      <p class="sub" style="margin-bottom:18px">On the home screen. Settings live in Quick Access (…) → Spindeck.</p>
+      <table>
+        <tr><td>Trackpad circle</td><td>Spin the wheel</td></tr>
+        <tr><td><kbd>◀</kbd> <kbd>▶</kbd></td><td>Previous / next game</td></tr>
+        <tr><td><kbd>A</kbd></td><td>Open the game's page, or launch it with “Ⓐ launches the game” on</td></tr>
+        <tr><td><kbd>X</kbd></td><td>Game page (when Ⓐ launches)</td></tr>
+        <tr><td><kbd>Y</kbd></td><td>Roulette: “Today's game?”</td></tr>
+        <tr><td><kbd>≡</kbd></td><td>Steam's game menu</td></tr>
+        <tr><td><kbd>L1</kbd> <kbd>R1</kbd></td><td>Your assigned views</td></tr>
+        <tr><td><kbd>▲</kbd> / <kbd>▼</kbd></td><td>Search / What's New, Friends, Recommended</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Install in a minute</h2>
+    <p class="sub">Spindeck installs from this project's GitHub releases through Decky Loader's developer mode.</p>
+    <ol class="steps">
+      <li>Install <a href="https://decky.xyz">Decky Loader</a> if you haven't.</li>
+      <li>In Gaming Mode: Quick Access (…) → Decky → ⚙️ → <b>General</b> → turn on <b>Developer mode</b>.</li>
+      <li>Open the <b>Developer</b> tab → <b>Install Plugin from URL</b> and paste the link to <code>spindeck-x.y.z.zip</code> from the <a href="https://github.com/justinca92/spindeck/releases/latest">latest release</a>.</li>
+      <li>Open Quick Access → <b>Spindeck</b>. The wheel replaces the home screen right away.</li>
+    </ol>
+    <p class="fine">Later updates: press <b>Check for updates</b> at the bottom of the Spindeck panel. Decky asks once, and your settings are kept.</p>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap trust">
+    <div>
+      <h2>Speaks your language</h2>
+      <p class="sub" style="margin-bottom:18px">Follows Steam's language automatically, or pick one in the panel. A built-in Hangul keypad covers Korean text, which Steam's keyboard can't type in Quick Access.</p>
+      <div class="langs"><span>English</span><span>한국어</span><span>Deutsch</span><span>Français</span><span>Español</span><span>Português (Brasil)</span><span>Русский</span><span>Українська</span><span>日本語</span><span>简体中文</span></div>
+    </div>
+    <div>
+      <h2>Leaves no trace</h2>
+      <p class="sub" style="margin-bottom:0">No telemetry and no background requests: GitHub is contacted only when you press <b>Check for updates</b>, and updates install only with GitHub's sha256 checksum. Turning the wheel off shows Steam's home, and uninstalling removes Spindeck's settings too. If a Steam update breaks something it relies on, you get Steam's original home instead of an error. <a href="https://github.com/justinca92/spindeck/blob/main/SECURITY.md">Security policy</a></p>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <h2>FAQ</h2>
+    <details><summary>Is it in the Decky store?</summary><p>Not yet. It installs from GitHub releases with Decky's developer mode (see Install). It's also listed in <a href="https://github.com/mazillka/deckyhub-plugin">DeckyHub</a>.</p></details>
+    <details><summary>Does it change my Steam settings or controller layout?</summary><p>No. The trackpad input mode, the header styling and the hidden row are restored the moment you turn the wheel off or disable the plugin.</p></details>
+    <details><summary>Which trackpad spins the wheel?</summary><p>The left one by default, with the wheel on the left edge. Pick the right trackpad in the panel and the wheel moves to the right.</p></details>
+    <details><summary>What if a Steam update breaks it?</summary><p>Spindeck relies on Steam's internal UI, which can change. When something it needs is missing, it shows Steam's original home instead, until a new version is out.</p></details>
+    <details><summary>Where do I report a bug or suggest an idea?</summary><p>In the project's <a href="https://github.com/justinca92/spindeck/issues">GitHub issues</a>. For security problems, please use a <a href="https://github.com/justinca92/spindeck/security/advisories/new">private report</a>.</p></details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Spindeck · BSD-3-Clause · not affiliated with Valve</span>
+    <span><a href="https://github.com/justinca92/spindeck">GitHub</a> · <a href="https://github.com/justinca92/spindeck/blob/main/RELEASE_NOTES.md">Release notes</a> · <a href="https://ko-fi.com/jhw0806">Support on Ko-fi ☕</a></span>
+  </div>
+</footer>
+
+<script>
+  // The hero wheel: games on an arc, idling round; drag, swipe or scroll to spin it.
+  (() => {
+    const stage = document.getElementById("stage");
+    const names = ["Aether Drift", "Brass Lantern", "Cinder Vale", "Echo Harbor", "Frostline", "Glimmer Run", "Hollow Spire", "Kite Season", "Lumen Tide", "Moss Engine", "Nightjar", "Orbit Café"];
+    const info = ["12.6 HRS · TODAY", "3.1 HRS · YESTERDAY", "41 HRS · 3 DAYS AGO", "NOT PLAYED YET", "7.4 HRS · 2 WK AGO", "102 HRS · 1 MO AGO"];
+    const caps = names.map((n, i) => {
+      const el = document.createElement("div");
+      el.className = "cap";
+      el.textContent = n;
+      const h = (i * 47 + 200) % 360;
+      el.style.background = `linear-gradient(160deg, hsl(${h} 60% 48%), hsl(${h + 40} 60% 18%))`;
+      stage.appendChild(el);
+      return el;
+    });
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const step = (2 * Math.PI) / names.length;
+    let pos = 0, vel = reduce ? 0 : 0.0016, dragging = false, lastX = 0, lastY = 0, lastSel = -1;
+    const R = () => stage.clientWidth * 0.39;
+    function draw() {
+      const r = R();
+      caps.forEach((el, i) => {
+        const a = i * step - pos - Math.PI / 2; // the top of the ring is the selection
+        const d = Math.abs(((((i * step - pos) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
+        const near = 1 - Math.min(1, d / Math.PI);
+        el.style.transform = `translate(${Math.cos(a) * r}px, ${Math.sin(a) * r}px) scale(${0.62 + 0.4 * near ** 3})`;
+        el.style.opacity = String(0.35 + 0.65 * near);
+        el.style.zIndex = String(Math.round(near * 100));
+      });
+      const sel = ((Math.round(pos / step) % names.length) + names.length) % names.length;
+      if (sel !== lastSel) {
+        lastSel = sel;
+        caps.forEach((c, i) => c.classList.toggle("sel", i === sel));
+        document.getElementById("hubName").textContent = names[sel];
+        document.getElementById("hubInfo").textContent = info[sel % info.length];
+      }
+    }
+    function tick() {
+      if (!dragging) {
+        pos += vel;
+        // Ease back to the idle drift after a flick, then settle the selection.
+        vel += ((reduce ? 0 : 0.0016) - vel) * 0.02;
+      }
+      draw();
+      requestAnimationFrame(tick);
+    }
+    stage.addEventListener("pointerdown", (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; stage.setPointerCapture(e.pointerId); });
+    stage.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const b = stage.getBoundingClientRect(), cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+      const a0 = Math.atan2(lastY - cy, lastX - cx), a1 = Math.atan2(e.clientY - cy, e.clientX - cx);
+      let d = a1 - a0;
+      if (d > Math.PI) d -= 2 * Math.PI;
+      if (d < -Math.PI) d += 2 * Math.PI;
+      pos -= d; vel = -d; lastX = e.clientX; lastY = e.clientY;
+    });
+    const end = () => (dragging = false);
+    stage.addEventListener("pointerup", end);
+    stage.addEventListener("pointercancel", end);
+    stage.addEventListener("wheel", (e) => { e.preventDefault(); vel += e.deltaY * 0.0004; }, { passive: false });
+    // The Ⓨ pill: a little roulette now and then.
+    const pill = document.getElementById("pill");
+    if (!reduce) setInterval(() => {
+      pill.textContent = "Picking today's game…";
+      vel = 0.12 + Math.random() * 0.05;
+      setTimeout(() => (pill.textContent = `Today's game: ${names[lastSel]}`), 2600);
+      setTimeout(() => (pill.textContent = "Today's game?"), 6000);
+    }, 12000);
+    tick();
+  })();
+</script>
+</body>
+</html>

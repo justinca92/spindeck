@@ -98,3 +98,13 @@ export function composeHangul(raw: string): string {
 export function toJamo(s: string): string {
   return decompose(toCompat(s));
 }
+
+/** Index letter of a title: A–Z, a Hangul initial consonant (ㄱ…ㅎ), "#" for digits/symbols. */
+export function indexLetter(name: string): string {
+  const ch = (name.trim()[0] ?? "#").toUpperCase();
+  const code = ch.charCodeAt(0);
+  if (code >= 0xac00 && code <= 0xd7a3) return CHO[Math.floor((code - 0xac00) / 588)];
+  if (/[A-Z]/.test(ch) || /[ㄱ-ㅎ]/.test(ch)) return ch;
+  if (/\p{L}/u.test(ch)) return ch;
+  return "#";
+}

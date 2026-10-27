@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "spindeck-mock",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "devtools/mock/dev-server.py",
+        "--port",
+        "5190"
+      ],
+      "port": 5190
+    },
+    {
+      "name": "spindeck-site",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5192",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "docs"
+      ],
+      "port": 5192
+    }
+  ]
+}

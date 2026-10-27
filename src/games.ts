@@ -32,23 +32,8 @@ const LOCAL_METHODS = {
   capsule: ["GetCustomVerticalCapsuleURLs", "GetCachedVerticalImageURLs", "GetVerticalCapsuleURLs"],
 } as const;
 
-let loggedArtApi = false;
-function logArtApi() {
-  if (loggedArtApi) return;
-  loggedArtApi = true;
-  try {
-    const names = new Set<string>();
-    for (let o = appStore; o && o !== Object.prototype; o = Object.getPrototypeOf(o))
-      for (const n of Object.getOwnPropertyNames(o)) if (/URL|Image|Capsule|Hero/i.test(n)) names.add(n);
-    debug("art", "appStore image methods", [...names].sort());
-  } catch {
-    /* ignore */
-  }
-}
-
 function urls(app: any, kind: "hero" | "capsule"): string[] {
   const out: string[] = [];
-  logArtApi();
   for (const m of LOCAL_METHODS[kind]) {
     try {
       const r = appStore?.[m]?.(app);
@@ -156,8 +141,14 @@ export function openGamePage(g: GameEntry) {
   }
 }
 
+/** Run the game; if Steam's (non-public) launch call fails, open its page, which has Play. */
 export function launch(g: GameEntry) {
-  SteamClient.Apps.RunGame(g.gameid, "", -1, 100);
+  try {
+    SteamClient.Apps.RunGame(g.gameid, "", -1, 100);
+  } catch (e) {
+    debug("launch", "RunGame failed, opening the game page", e);
+    openGamePage(g);
+  }
 }
 
 export interface AchievementProgress {
@@ -179,16 +170,11 @@ export function overviewMinutes(o: any): number {
 // Runtime only, never saved.
 declare const appAchievementProgressCache: any;
 const achSeen = new Map<number, AchievementProgress | null>();
-let loggedAchCache = false;
 
 function fromSteamCache(appid: number): AchievementProgress | null | undefined {
   try {
     const c = appAchievementProgressCache;
     const e = c?.m_achievementProgress?.mapCache?.get?.(appid) ?? c?.mapCache?.get?.(appid);
-    if (!loggedAchCache) {
-      loggedAchCache = true;
-      debug("ach", "steam achievement cache", { present: !!c, keys: c ? Object.keys(c).slice(0, 20) : [], sample: e });
-    }
     if (!e) return undefined;
     const total = Number(e.total ?? e.nTotal ?? 0);
     const unlocked = Number(e.unlocked ?? e.nAchieved ?? 0);
@@ -213,11 +199,9 @@ export interface AppExtra {
 
 // Steam's game page reads playtime from the app details, which also covers
 // non-Steam shortcuts (their library overview reports 0). Field names are not
-// public and vary between clients, so a few are tried; the details' shape is
-// logged once (debug) for checking on device.
+// public and vary between clients, so a few are tried.
 const MINUTE_FIELDS = ["nPlaytimeForever", "nPlaytime", "unPlaytimeForever", "nMinutesPlaytimeForever", "minutes_playtime_forever"];
 const LAST_FIELDS = ["rtLastTimePlayed", "rtLastTimeLocallyPlayed", "rt_last_time_played"];
-let loggedDetails = false;
 
 function firstNumber(d: any, fields: string[]): number | null {
   for (const f of fields) {
@@ -235,16 +219,6 @@ export function subscribeAppExtra(appid: number, cb: (x: AppExtra) => void): () 
   let reg: any;
   try {
     reg = SteamClient?.Apps?.RegisterForAppDetails?.(appid, (details: any) => {
-      if (!loggedDetails) {
-        loggedDetails = true;
-        try {
-          const pick: Record<string, unknown> = {};
-          for (const k of Object.keys(details ?? {})) if (/play|time|last/i.test(k)) pick[k] = details[k];
-          debug("details", "app details time fields", appid, pick);
-        } catch {
-          /* ignore */
-        }
-      }
       const a = details?.achievements;
       const total = a?.nTotal ?? 0;
       // Details can arrive before Steam has loaded achievements (nTotal 0 at

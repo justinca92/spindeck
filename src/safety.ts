@@ -48,13 +48,3 @@ export function teardownAll() {
     }
   }
 }
-
-/** Run `fn`, returning `fallback` if it throws (logged). */
-export function attempt<T>(area: string, fn: () => T, fallback: T): T {
-  try {
-    return fn();
-  } catch (e) {
-    debug(area, "failed", e);
-    return fallback;
-  }
-}

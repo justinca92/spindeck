@@ -36,7 +36,7 @@ export function focusablesIn(box: Element): HTMLElement[] {
 
 const none = (v: string) => !v || v === "none" || v === "rgba(0, 0, 0, 0)" || v === "transparent";
 /** Has its own background (incl. ::before/::after) or a backdrop filter. */
-export function isPainted(view: any, el: Element) {
+function isPainted(view: any, el: Element) {
   return [view.getComputedStyle(el), view.getComputedStyle(el, "::before"), view.getComputedStyle(el, "::after")].some(
     (cs: CSSStyleDeclaration) => !none(cs.backgroundColor) || !none(cs.backgroundImage) || !none(cs.backdropFilter),
   );
@@ -56,8 +56,13 @@ export function headerStrips(doc: Document, maxAgeMs: number): HTMLElement[] {
   const view = doc.defaultView!;
   const W = view.innerWidth || 1280;
   const out: HTMLElement[] = [];
-  for (const el of Array.from(doc.querySelectorAll<HTMLElement>("body *"))) {
-    if (el.closest("[data-spindeck-root]")) continue; // our own layer (tab row is probed separately)
+  // Our own layer is skipped whole (the tab row is probed separately), and with it
+  // Steam's home rendered inside it — usually most of the page.
+  const SHOW_ELEMENT = 1, ACCEPT = 1, REJECT = 2; // NodeFilter values
+  const walker = doc.createTreeWalker(doc.body, SHOW_ELEMENT, {
+    acceptNode: (node: Node) => ((node as Element).hasAttribute("data-spindeck-root") ? REJECT : ACCEPT),
+  });
+  for (let el = walker.nextNode() as HTMLElement | null; el; el = walker.nextNode() as HTMLElement | null) {
     const r = el.getBoundingClientRect();
     if (r.top > 2 || r.bottom < 20 || r.height > 140 || r.width < W * 0.8) continue;
     if (el.classList.contains(CLEAR_CLASS) || isPainted(view, el)) out.push(el); // ours = Steam-painted underneath

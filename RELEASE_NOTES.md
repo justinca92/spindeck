@@ -1,5 +1,41 @@
 # Release notes
 
+## 1.5.0-rc.1
+
+### What's new in 1.5.0-rc.1 (pre-release)
+
+A preview of 1.5.0 for anyone who wants to try it early. 1.4.1 only checks for stable releases, so install this zip by hand (below). From here on, set **Update channel** to **Pre-release** to get the next pre-releases from **Check for updates**.
+
+**New**
+- 🎮 **Ⓐ can launch the game.** Turn on **Ⓐ launches the game** in Wheel controls: Ⓐ starts the selected game and Ⓧ opens its page. A game that isn't installed opens its page (with Steam's Install button) instead, and Ⓐ does nothing while the roulette or an L1/R1 switch is still moving. Off by default, so Ⓐ keeps opening the game page.
+- 🧪 **Update channel.** Next to **Check for updates** you can now pick **Stable** (the default) or **Pre-release**. Pre-release also offers early versions like this one, and switches back to the stable version once it's out.
+- 🌍 **Eight more languages:** Deutsch, Français, Español, Português (Brasil), Русский, Українська, 日本語 and 简体中文, picked from Steam's language like English and Korean, or chosen in the panel.
+
+**Changed**
+- 🗂️ **A tidier panel.** Settings are grouped by what they change: Personalize, Library, Display, Wheel controls, a new **Haptics & sound** section and a new **General** section (language, update channel, reload). Options that depend on another one sit indented right under it, and every setting has an icon.
+- 🔄 **The wheel notices library changes.** A game you install, uninstall or play shows up (and collections you renamed) when you come back to the home screen, while the wheel keeps the game you were on.
+- 🔒 **Safer in-panel updates.** Spindeck now installs an update only from its own GitHub releases and only with GitHub's checksum, which Decky verifies. Without one it points you to the manual zip instead.
+
+**Fixed**
+- 📳 Haptics no longer stay off for the whole session when Steam was slow to load its haptics at startup. The same goes for the ≡ game menu.
+- 🌀 If Steam's trackpad input can't be used, the circle input switches itself off cleanly instead of leaving the Deck's trackpad in a mode where rubbing could act as Ⓑ or open the Steam menu.
+- ✍️ Text typed in the panel is saved even when you close Quick Access right after typing.
+- ⚡ Less work in the background: no header updates while a game is running, and fewer full-page scans and log messages.
+
+**Try it on your Deck**
+- With **Ⓐ launches the game** on: Ⓐ on an installed game, Ⓐ on one that isn't installed, Ⓧ, and Ⓐ during the Ⓨ roulette.
+- Switch Steam's language (or the panel's) to one of the new languages and check the panel and the info line.
+- Install or uninstall a game, go back home and check the wheel.
+- Spin with the trackpad right after a reboot (haptics), and open ≡ on a game.
+- Set **Update channel** to Pre-release and press **Check for updates**.
+
+**Install:** Decky → Developer → Install Plugin from URL →
+https://github.com/justinca92/spindeck/releases/download/v1.5.0-rc.1/spindeck-1.5.0-rc.1.zip
+
+---
+Pre-release: tested on Steam Deck LCD in game mode. Bugs and ideas: [Issues](https://github.com/justinca92/spindeck/issues)
+Free and open source. If you enjoy it: [Ko-fi](https://ko-fi.com/jhw0806) ☕
+
 ## 1.4.1
 
 ### What's new in 1.4.1

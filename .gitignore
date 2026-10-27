@@ -3,3 +3,8 @@ node_modules/
 __pycache__/
 tests/out/
 release/
+devtools/mock/out/
+devtools/mock/.dev-data/
+devtools/mock/test-results/
+devtools/mock/playwright-report/
+dist/

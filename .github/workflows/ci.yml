@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      # Node 24 runs the unit tests on src/*.ts directly (built-in type stripping).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Typecheck
+        run: npx -p typescript@$(node -p "require('./package.json').devDependencies.typescript") tsc -p typecheck/tsconfig.json
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Backend tests
+        run: npm run test:backend
+
+      - name: Build
+        run: |
+          bun build/build.ts
+          v=$(node -p "require('./package.json').version")
+          grep -Fq "\"$v\"" dist/index.js || { echo "dist/index.js doesn't carry version $v"; exit 1; }
+
+  # The real plugin + real main.py in the browser mock (devtools/mock), driven by Playwright.
+  e2e:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: devtools/mock
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: devtools/mock/package-lock.json
+
+      - name: Install
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Smoke and E2E tests
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: playwright-report
+          path: devtools/mock/playwright-report
+          retention-days: 7

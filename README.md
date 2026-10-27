@@ -19,7 +19,7 @@
 - **Dial odometer.** Counts every turn you've ever spun. See the total in the panel's About section, with milestone celebrations along the way.
 - **Your own title.** Set a line of text in the corner (e.g. "j1's Steam Deck") and an optional subtitle, with a preset accent colour.
 - **Steam's home is still there.** Press ▼ for What's New / Friends / Recommended, which behave like the stock page.
-- **English and Korean**, following Steam's language. There is a built-in Hangul keypad, because Steam's keyboard can't type Korean in the Quick Access panel.
+- **10 languages**, following Steam's language: English, 한국어, Deutsch, Français, Español, Português (Brasil), Русский, Українська, 日本語 and 简体中文 (or pick one in the panel). There is a built-in Hangul keypad, because Steam's keyboard can't type Korean in the Quick Access panel.
 
 ## Controls (home)
 
@@ -28,7 +28,8 @@
 | Trackpad circle (left by default) | Spin the wheel |
 | D-pad ◀ ▶ | Previous / next game |
 | L1 / R1 | The view you assigned to each in the panel (off until you pick one) |
-| Ⓐ | Open the game's page |
+| Ⓐ | Open the game's page (or launch the game, with "Ⓐ launches the game" on in the panel) |
+| Ⓧ | With "Ⓐ launches the game" on: open the game's page |
 | ≡ | Steam's game menu (Play, Properties, …) |
 | Ⓨ | Roulette: "Today's game?" (Ⓨ again stops it) |
 | D-pad ▲ | Search, like the stock home |
@@ -49,7 +50,7 @@ Spindeck isn't in the Decky store. It installs from this repository's releases.
    - **Install Plugin from ZIP**: pick the zip after downloading it on the Deck.
 4. Open Quick Access → Spindeck. The wheel replaces the home screen right away.
 
-**Updates (1.4.1 and later):** press **Check for updates** at the bottom of the Spindeck panel. It tells you whether you're up to date or which version is available; if you choose **Update to vX**, Decky asks you to confirm once and replaces the plugin in place, keeping your settings. Spindeck never checks on its own: GitHub's public API is contacted only when you press the button. You can always update by installing the newer zip the same way as above.
+**Updates (1.4.1 and later):** press **Check for updates** at the bottom of the Spindeck panel. It tells you whether you're up to date or which version is available; if you choose **Update to vX**, Decky asks you to confirm once and replaces the plugin in place, keeping your settings. Spindeck never checks on its own: GitHub's public API is contacted only when you press the button. To try versions before they're stable, set **Update channel** (just above the button) to **Pre-release**: the check then also offers pre-releases, and moves on to the stable version once it's out. You can always update by installing the newer zip the same way as above.
 
 ## Uninstalling leaves nothing behind
 
@@ -63,7 +64,7 @@ Spindeck never changes Steam's settings, controller layouts or files.
 
 - Korean text in the panel uses the plugin's own Hangul keypad, because Steam's on-screen keyboard sends empty keys to the Quick Access panel.
 - It relies on Steam's internal UI, which isn't a public API. A Steam client update can change it. The plugin then falls back to Steam's home until it's updated.
-- Tested on Steam Deck OLED in game mode.
+- Tested on Steam Deck OLED and Steam Deck LCD in game mode.
 
 ## Support
 
